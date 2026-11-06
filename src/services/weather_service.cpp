@@ -22,6 +22,7 @@
 #include "utils/logger.h"
 
 #include <WiFi.h>
+#include <WiFiMulti.h>
 #include <SD.h>
 #include <math.h>
 #include <stdlib.h>
@@ -254,11 +255,17 @@ void netCycle() {
 
   WiFi.persistent(false);
   WiFi.mode(WIFI_STA);
-  WiFi.begin(SUNISLE_WIFI_SSID, SUNISLE_WIFI_PASSWORD);
+
+  // 支持多个 Wi-Fi（主网络 + 备用网络），设备依次尝试直到连上其中一个
+  WiFiMulti wifiMulti;
+  if (SUNISLE_WIFI_SSID[0])  wifiMulti.addAP(SUNISLE_WIFI_SSID, SUNISLE_WIFI_PASSWORD);
+#ifdef SUNISLE_WIFI_SSID_2
+  if (SUNISLE_WIFI_SSID_2[0])  wifiMulti.addAP(SUNISLE_WIFI_SSID_2, SUNISLE_WIFI_PASSWORD_2);
+#endif
   WiFi.setSleep(true);
 
   const uint32_t t0 = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - t0 < kWifiWaitMs)
+  while (wifiMulti.run() != WL_CONNECTED && millis() - t0 < kWifiWaitMs)
     delay(250);
 
   if (WiFi.status() != WL_CONNECTED) {
@@ -317,7 +324,11 @@ void netTask(void*) {
 }  // namespace
 
 void begin() {
-  const bool haveCreds = SUNISLE_WIFI_SSID[0] != 0;
+  const bool haveCreds = (SUNISLE_WIFI_SSID[0] != 0)
+#ifdef SUNISLE_WIFI_SSID_2
+                      || (SUNISLE_WIFI_SSID_2[0] != 0)
+#endif
+                      ;
   const bool havePlace = SUNISLE_CITY_LAT[0] != 0 && SUNISLE_CITY_LON[0] != 0;
 
   Snapshot s = snapshot();
