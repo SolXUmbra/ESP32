@@ -1,0 +1,7 @@
+.pio/
+.vscode/
+.local/
+include/secrets.h
+*.bin
+*.log
+build/
