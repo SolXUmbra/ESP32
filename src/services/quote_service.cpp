@@ -1,12 +1,14 @@
-// Daily quote service - see quote_service.h for the rationale.
+// 每日一言 service - 每次开机换一句。
+// 开机计数持久化在 NVS (Preferences)，每次启动 +1 后取模选句，
+// 因此连续两次开机必然不同；30 句循环一轮后才会重复。
 #include "services/quote_service.h"
 
 #include "sunisle/state.h"
-#include "services/time_service.h"
 #include "utils/logger.h"
 
+#include <Preferences.h>
+#include <esp_system.h>
 #include <string.h>
-#include <time.h>
 
 namespace sunisle {
 namespace quoteService {
@@ -49,32 +51,19 @@ static const char* const kQuotes[] = {
 };
 
 constexpr uint32_t kCount = sizeof(kQuotes) / sizeof(kQuotes[0]);
-uint32_t s_index = 0;   // currently shown quote index
+uint32_t s_index = 0;        // currently shown quote index
+uint32_t s_bootCount = 0;    // persisted across reboots
 bool     s_shown = false;
 
-// Deterministic day number: local calendar date collapsed to an integer, so
-// the quote is stable for a whole day and advances with the date.
-uint32_t dayNumber() {
-  if (timeService::isSynced()) {
-    time_t raw = static_cast<time_t>(timeService::epoch());
-    struct tm* lt = localtime(&raw);
-    if (lt)
-      return static_cast<uint32_t>(lt->tm_year * 372 + lt->tm_mon * 31 +
-                                   lt->tm_mday);
-  }
-  // Not synced yet: stable fallback (just show the first quote until NTP).
-  return 0;
-}
-
-void publishQuote() {
-  const uint32_t idx = dayNumber() % kCount;
+void publishQuote(uint32_t idx) {
   Snapshot s = snapshot();
   strncpy(s.quote, kQuotes[idx], sizeof(s.quote) - 1);
   s.quote[sizeof(s.quote) - 1] = 0;
   publish(s);
   s_index = idx;
   s_shown = true;
-  SUN_LOG("quote", "daily quote #%lu/%lu: %s",
+  SUN_LOG("quote", "boot #%lu -> #%lu/%lu: %s",
+          static_cast<unsigned long>(s_bootCount),
           static_cast<unsigned long>(idx + 1),
           static_cast<unsigned long>(kCount), kQuotes[idx]);
 }
@@ -82,16 +71,29 @@ void publishQuote() {
 }  // namespace
 
 void begin() {
-  publishQuote();
+  // NVS lives at 0x9000 and is never touched by our app0-only flashing, so
+  // the counter survives every reflash as well as every power cycle.
+  Preferences prefs;
+  if (prefs.begin("sunisle", false)) {
+    s_bootCount = prefs.getUInt("bootCount", 0) + 1;
+    prefs.putUInt("bootCount", s_bootCount);
+    prefs.end();
+  } else {
+    s_bootCount = esp_random();   // NVS unavailable: still varies per boot
+    SUN_LOG("quote", "NVS unavailable, using random seed");
+  }
+  publishQuote(s_bootCount % kCount);
 }
 
 void tick() {
-  const uint32_t idx = dayNumber() % kCount;
-  if (!s_shown || idx != s_index) publishQuote();
+  // The quote is chosen once at boot and stays for the whole session.
+  // (Previously it re-picked after NTP, which made it jump mid-boot.)
+  if (!s_shown) publishQuote(s_bootCount % kCount);
 }
 
 void dump() {
-  SUN_LOG("quote", "index=%lu/%lu shown=%s",
+  SUN_LOG("quote", "boot=%lu index=%lu/%lu shown=%s",
+          static_cast<unsigned long>(s_bootCount),
           static_cast<unsigned long>(s_index + 1),
           static_cast<unsigned long>(kCount), s_shown ? "YES" : "NO");
 }

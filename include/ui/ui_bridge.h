@@ -10,7 +10,8 @@ namespace uiBridge {
 
 void begin();          // calls ui_init() once, after LVGL + display are ready
 void tick();           // push real time/weather/city/photo state once per second
-const char* photoMode();  // "NONE" | "STREAMING" | "FAILED" for diagnostics
+const char* photoMode();  // "NONE" | "STREAMING" | "FAILED" | "OFF"
+void setPhotoEnabled(bool on);  // runtime soft-delete of the photo feature
 
 }  // namespace uiBridge
 }  // namespace sunisle

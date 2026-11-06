@@ -52,6 +52,8 @@ lgfx::LGFX_Sprite* s_sprite = nullptr;
 lv_img_dsc_t       s_dsc;
 char               s_shownPath[64] = {0};
 const char*        s_mode = "NONE";
+bool               s_photoEnabled = true;
+int8_t             s_pixelSwap = -1;   // -1 = not probed yet
 
 // REAL WMO 4677 code -> the vendor's hand-drawn weather icon set.
 ui_weather_t condFromWmo(uint8_t c) {
@@ -119,6 +121,34 @@ bool ensureSprite() {
   return true;
 }
 
+// WHY THE PHOTO WAS GARBLED (花屏)
+// --------------------------------
+// LovyanGFX stores 16-bit sprites as swap565_t: RGB565 in SPI byte order
+// (the two bytes of every pixel are reversed). LVGL here is configured with
+// LV_COLOR_16_SWAP=0, i.e. it expects native little-endian RGB565. The rest
+// of the UI is drawn by LVGL itself, so only the photo - whose pixels came
+// straight out of the LovyanGFX sprite - looked like coloured noise.
+//
+// Probe once with a known colour: write it, read the first two bytes back.
+// If the little-endian interpretation does not match, the sprite is in SPI
+// byte order and every pixel must be byte-swapped before LVGL sees it.
+void probePixelOrder() {
+  if (s_pixelSwap >= 0 || !s_sprite) return;
+  const uint16_t probe = lgfx::color565(0x12, 0x34, 0x56);
+  s_sprite->fillScreen(probe);   // immediately overwritten by the sand fill
+  const uint8_t* p = static_cast<const uint8_t*>(s_sprite->getBuffer());
+  const uint16_t asLE = static_cast<uint16_t>(p[0]) |
+                        (static_cast<uint16_t>(p[1]) << 8);
+  bool need = (asLE != probe);      // sprite bytes reversed vs LVGL
+#if LV_COLOR_16_SWAP
+  need = !need;                     // LVGL itself wants SPI byte order
+#endif
+  s_pixelSwap = need ? 1 : 0;
+  SUN_LOG("uibridge", "pixel order: probe=%04X asLE=%04X -> swap=%d",
+          static_cast<unsigned>(probe), static_cast<unsigned>(asLE),
+          static_cast<int>(s_pixelSwap));
+}
+
 // Stream-decode one JPEG into the viewport sprite, then hand LVGL a descriptor.
 bool streamPhoto(const char* path) {
   if (!storage::isReady()) return false;
@@ -128,6 +158,7 @@ bool streamPhoto(const char* path) {
     return false;
   }
   if (!ensureSprite()) return false;
+  probePixelOrder();
 
   // "Contain" fit keeps the whole real photo visible and centered; the frame
   // keeps the vendor's exact 216x164 geometry and rounded corners.
@@ -146,6 +177,16 @@ bool streamPhoto(const char* path) {
   if (!ok) {
     SUN_LOG("uibridge", "TJpgD stream FAILED for %s", path);
     return false;
+  }
+
+  // Normalise the pixel byte order in place: no second buffer needed.
+  if (s_pixelSwap == 1) {
+    uint8_t* px = static_cast<uint8_t*>(s_sprite->getBuffer());
+    for (size_t i = 0; i < kPhotoW * kPhotoH * 2; i += 2) {
+      const uint8_t t = px[i];
+      px[i] = px[i + 1];
+      px[i + 1] = t;
+    }
   }
 
   memset(&s_dsc, 0, sizeof(s_dsc));
@@ -225,11 +266,12 @@ void tick() {
     snprintf(temp, sizeof(temp), "--°");
     desc = s.weatherConfigured ? "更新中" : "天气未配置";
   }
-  const char* city = s.weatherConfigured ? s.city : "未配置";
-  ui_set_weather(cond, temp, desc, city);
+  // Place label is always the Chinese 地名「渑池」, independent of whether
+  // Open-Meteo is configured. The CJK font ships both glyphs.
+  ui_set_weather(cond, temp, desc, DISPLAY_CITY);
 
   // ---- Real photo state ----
-  const char* path = photoService::currentPath();
+  const char* path = s_photoEnabled ? photoService::currentPath() : nullptr;
   if (path && strcmp(path, s_shownPath) != 0) {
     if (!streamPhoto(path)) s_mode = "FAILED";
   }
@@ -245,9 +287,21 @@ void tick() {
   }
   ui_set_caption(caption);
 
-  // ---- Bottom strip: brand logo is static ("晴屿 SUNISLE"), the right slot
-  //      shows the daily quote. No "照片/陪伴模式" wording on the frame. ----
+  // ---- Bottom strip: the brand moved to the top-left, so the full-width
+  //      strip now carries only the daily quote. ----
   ui_set_status(s.quote[0] ? s.quote : "把喜欢的时光，留在身边。");
+}
+
+void setPhotoEnabled(bool on) {
+  s_photoEnabled = on;
+  s_shownPath[0] = 0;          // force a re-decode on the next tick
+  if (!on) {
+    ui_hide_photo();           // back to the calm placeholder, never garble
+    s_mode = "OFF";
+    SUN_LOG("uibridge", "photo display disabled (PHOTO=OFF)");
+  } else {
+    SUN_LOG("uibridge", "photo display enabled (PHOTO=ON)");
+  }
 }
 
 const char* photoMode() { return s_mode; }

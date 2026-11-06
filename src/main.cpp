@@ -17,6 +17,7 @@
 #include "services/weather_service.h"
 #include "services/quote_service.h"
 #include "ui/ui_manager.h"
+#include "ui/ui_bridge.h"
 
 using namespace sunisle;
 
@@ -44,7 +45,8 @@ void handleCommand(const String& raw) {
 
   if (c == "HELP") {
     Serial.println(F("HELP | STATE | MEM | SD | TIME | WX | PAGE=home|photos|settings"));
-    Serial.println(F("BL=<0..255> | INTERVAL=<seconds> | RESCAN | NEXT"));
+    Serial.println(F("BL=<0..255> | INTERVAL=<seconds> | RESCAN | NEXT | PHOTO=ON|OFF"));
+    Serial.println(F("DEL /SUNISLE/photos/NAME.JPG  (remove one photo before re-uploading)"));
     Serial.println(F("DIAG (RAW GFX, LVGL bypassed) | UI (resume) | REBOOT"));
     Serial.println(F("SDPROBE | SDPROBE=FULL (read-only SD bus matrix)"));
     Serial.println(F("PUT /SUNISLE/photos/NAME.JPG <bytes>  (raw bytes follow)"));
@@ -98,6 +100,17 @@ void handleCommand(const String& raw) {
       photoService::rescan();     // real rescan, no optimistic count
       ui::tick1s();               // decode + show immediately
     }
+  } else if (c.startsWith("DEL ")) {
+    // The PUT protocol never overwrites: to replace a photo, remove the old
+    // one first, then PUT the same name. Storage layer enforces that only a
+    // JPEG directly inside /SUNISLE/photos/ can be deleted.
+    String t = raw;
+    t.trim();
+    String path = t.substring(4);
+    path.trim();
+    const bool ok = storage::deletePhoto(path.c_str());
+    Serial.printf("[del] %s %s\n", ok ? "OK" : "FAILED", path.c_str());
+    if (ok) photoService::rescan();   // keep cursor + path list consistent
   } else if (c == "WX") {
     weatherService::dump();
   } else if (c == "STATE") {
@@ -157,6 +170,11 @@ void handleCommand(const String& raw) {
     ui::tick1s();
   } else if (c == "NEXT") {
     photoService::next();
+    ui::tick1s();
+  } else if (c.startsWith("PHOTO=")) {
+    const bool on = !c.endsWith("OFF");
+    uiBridge::setPhotoEnabled(on);
+    Serial.printf("[cmd] photo display %s\n", on ? "ON" : "OFF");
     ui::tick1s();
   } else if (c == "SDPROBE" || c == "SDPROBE=FULL") {
     storage::runProbe(c == "SDPROBE=FULL");

@@ -50,6 +50,9 @@ void ui_set_weather(ui_weather_t condition,
  */
 void ui_show_photo(const lv_img_dsc_t *image);
 
+/* Restore the calm placeholder and hide the photo (PHOTO=OFF fallback). */
+void ui_hide_photo(void);
+
 /* Show a short caption below the photo. Pass NULL or "" to hide it. */
 void ui_set_caption(const char *caption);
 

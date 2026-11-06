@@ -304,6 +304,19 @@ bool fileExists(const char* path) {
   return s_ready && isManaged(path) && SD.exists(path);
 }
 
+bool deletePhoto(const char* path) {
+  if (!s_ready || !isManaged(path)) return false;
+  const size_t prefix = strlen(DIR_PHOTOS);
+  if (strncmp(path, DIR_PHOTOS, prefix) != 0) return false;
+  // Must be a direct child of the photos dir, never a nested path.
+  if (path[prefix] != '/' || strchr(path + prefix + 1, '/')) return false;
+  if (!endsWithJpeg(path + prefix + 1)) return false;
+  if (!SD.exists(path)) return false;
+  const bool ok = SD.remove(path);
+  SUN_LOG("sd", "deleted %s %s", path, ok ? "OK" : "FAILED");
+  return ok;
+}
+
 bool writeFromStream(const char* path, Stream& src, uint32_t expected,
                      uint32_t& written) {
   written = 0;

@@ -42,9 +42,10 @@ constexpr uint16_t LVGL_BUF_LINES = 12;         // 240*12 px partial buffer
 constexpr uint32_t LVGL_LOOP_MS      = 5;
 constexpr uint32_t UI_TICK_MS        = 1000;
 constexpr uint32_t HEARTBEAT_MS      = 10000;
-constexpr uint32_t BOOT_FADE_MS      = 700;
-constexpr uint32_t BOOT_TOTAL_MS     = 1800;    // 1.5~2s per task book
-constexpr uint32_t SLIDESHOW_DEFAULT_MS = 15000;
+constexpr uint32_t BOOT_FADE_MS      = 400;    // 米色淡入 0.4s
+constexpr uint32_t BOOT_HOLD_MS      = 5000;   // 画面清晰停留 5s
+constexpr uint32_t BOOT_TOTAL_MS     = 5400;   // 400 + 5000
+constexpr uint32_t SLIDESHOW_DEFAULT_MS = 5000;    // 5 秒随机轮换
 constexpr uint32_t SLIDESHOW_MIN_MS      = 3000;
 constexpr uint32_t SLIDESHOW_MAX_MS      = 300000;
 
@@ -66,6 +67,9 @@ constexpr const char* FILE_SYNC_LOG  = "/SUNISLE/system/sync.log";
 constexpr uint64_t SD_MIN_FREE_BYTES = 64ULL * 1024ULL * 1024ULL;
 
 // ---- Product identity ----
+// Home screen place label: always 渑池 in Chinese, independent of whether
+// the weather service is configured. The CJK font ships these two glyphs.
+constexpr const char* DISPLAY_CITY = "渑池";
 constexpr const char* PRODUCT_CN   = "晴屿";
 constexpr const char* PRODUCT_EN   = "SUNISLE";
 constexpr const char* SLOGAN_CN    = "把喜欢的时光，留在身边。";

@@ -48,6 +48,10 @@ bool readText(const char* path, String& out);
 bool fileExists(const char* path);
 bool writeFromStream(const char* path, Stream& src, uint32_t expected,
                      uint32_t& written);
+// Replace-a-photo helper for the serial DEL command. Hard-restricted to
+// .jpg/.jpeg files directly inside /SUNISLE/photos/; nothing else on the
+// card can be removed (config, system files and subfolders are refused).
+bool deletePhoto(const char* path);
 
 bool loadSettings(Snapshot& s);
 bool saveSettings(const Snapshot& s);

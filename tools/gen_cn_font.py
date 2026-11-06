@@ -18,10 +18,18 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 HDR = ROOT / "include" / "fonts" / "sunisle_cn.h"
 SRC = ROOT / "src" / "ui" / "sunisle_cn.cpp"
 
-FONT_CANDIDATES = [
-    ("C:/Windows/Fonts/msyh.ttc", 0),   # Microsoft YaHei (regular)
-    ("C:/Windows/Fonts/simhei.ttf", 0), # SimHei fallback
-]
+FONT_SETS = {
+    # Sans: crisp for the live home screen (date / weather / quotes).
+    "hei": [("C:/Windows/Fonts/msyh.ttc", 0),
+            ("C:/Windows/Fonts/simhei.ttf", 0)],
+    # Kai: brush-like, used only by the boot splash (brand + poem + seal).
+    "kai": [("C:/Windows/Fonts/simkai.ttf", 0),
+            ("C:/Windows/Fonts/simsun.ttc", 0)],
+}
+
+# Boot splash slogan: FROZEN copy, identical to SLOGAN_CN in config.h.
+# Rendered in Kai; the live UI keeps its sans subset untouched.
+BOOT_STRINGS = "把喜欢的时光，留在身边。"
 
 # Weather vocabulary for the REAL Open-Meteo WMO codes (see weather_service.cpp).
 # Kept beside UI_STRINGS so a new WMO wording never renders as tofu boxes.
@@ -122,19 +130,23 @@ SPECS = [
      "fallback": "lv_font_montserrat_12",
      "comment": "daily quote"},
     {"name": "sunisle_cn_28", "size": 28, "chars": BRAND_CHARS,
-     "fallback": "lv_font_montserrat_14",
-     "comment": "brand only"},
+     "fallback": "lv_font_montserrat_14", "font": "kai",
+     "comment": "brand only, Kai for the splash"},
+    # Boot splash only: the original Chinese slogan in Kai.
+    {"name": "sunisle_cn_boot", "size": 16, "chars": BOOT_STRINGS,
+     "fallback": "lv_font_montserrat_16", "font": "kai",
+     "comment": "boot slogan (Kai)"},
 ]
 
 
-def load_font(size):
-    for path, index in FONT_CANDIDATES:
+def load_font(size, which="hei"):
+    for path, index in FONT_SETS.get(which, FONT_SETS["hei"]):
         if os.path.exists(path):
             try:
                 return ImageFont.truetype(path, size, index=index), path
             except Exception:
                 continue
-    raise RuntimeError("No usable CJK TTF found on this machine")
+    raise RuntimeError("No usable CJK TTF found on this machine: " + which)
 
 
 def render_glyph(font, ch, size):
@@ -163,7 +175,7 @@ def build(spec):
     chars = spec["chars"] if spec["chars"] is not None \
         else "".join(UI_STRINGS + WEATHER_STRINGS)
     unique = sorted({c for c in chars if ord(c) > 0x2E80})
-    font, font_path = load_font(size)
+    font, font_path = load_font(size, spec.get("font", "hei"))
     spec["font_path"] = font_path
 
     bitmap = bytearray()

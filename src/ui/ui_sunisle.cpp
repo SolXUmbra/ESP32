@@ -156,18 +156,24 @@ static void create_home(void)
     lv_obj_set_style_border_width(scr, 0, 0);
     lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
 
-    /* Brand micro-header */
-    lv_obj_t *brand = make_label(scr, "SUNISLE", C_INK, &lv_font_montserrat_12);
-    lv_obj_set_pos(brand, 14, 12);
-    lv_obj_set_style_text_letter_space(brand, 2, 0);
+    /* Brand micro-header: 晴屿 · SUNISLE, moved up from the bottom strip
+       to replace the old Latin-only "SUNISLE" here. */
+    brand_footer = make_label(scr, "晴屿", C_ORANGE_INK,
+                              &lv_font_montserrat_12);
+    lv_obj_set_pos(brand_footer, 14, 10);
 
     lv_obj_t *brand_dot = lv_obj_create(scr);
     lv_obj_remove_style_all(brand_dot);
-    lv_obj_set_size(brand_dot, 5, 5);
-    lv_obj_set_pos(brand_dot, 91, 17);
+    lv_obj_set_size(brand_dot, 4, 4);
+    lv_obj_set_pos(brand_dot, 39, 16);
     lv_obj_set_style_radius(brand_dot, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_bg_color(brand_dot, C_ORANGE, 0);
     lv_obj_set_style_bg_opa(brand_dot, LV_OPA_COVER, 0);
+
+    lv_obj_t *brand_en = make_label(scr, "SUNISLE", C_INK,
+                                    &lv_font_montserrat_10);
+    lv_obj_set_pos(brand_en, 46, 13);
+    lv_obj_set_style_text_letter_space(brand_en, 1, 0);
 
     date_label = make_label(scr, "FRIDAY  NOV 06", C_MUTED, &lv_font_montserrat_10);
     lv_obj_set_pos(date_label, 14, 34);
@@ -261,32 +267,17 @@ static void create_home(void)
     lv_obj_set_width(time_label, 142);
     lv_obj_set_style_text_letter_space(time_label, 1, 0);
 
-    city_label = make_label(scr, "YOUR PLACE", C_BLUE_INK, &lv_font_montserrat_10);
+    city_label = make_label(scr, "渑池", C_BLUE_INK, &lv_font_montserrat_10);
     lv_obj_set_pos(city_label, 151, 267);
     lv_obj_set_width(city_label, 76);
     lv_obj_set_style_text_align(city_label, LV_TEXT_ALIGN_RIGHT, 0);
 
-    /* Bottom strip: brand logo (left, two-tone) + daily quote (right, scroll). */
-    brand_footer = make_label(scr, "晴屿", C_ORANGE_INK, &lv_font_montserrat_12);
-    lv_obj_set_pos(brand_footer, 14, 302);
-
-    lv_obj_t *brand_footer_en = make_label(scr, "SUNISLE", C_INK,
-                                            &lv_font_montserrat_10);
-    lv_obj_set_pos(brand_footer_en, 46, 304);
-    lv_obj_set_style_text_letter_space(brand_footer_en, 1, 0);
-
-    lv_obj_t *brand_footer_dot = lv_obj_create(scr);
-    lv_obj_remove_style_all(brand_footer_dot);
-    lv_obj_set_size(brand_footer_dot, 4, 4);
-    lv_obj_set_pos(brand_footer_dot, 41, 308);
-    lv_obj_set_style_radius(brand_footer_dot, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_bg_color(brand_footer_dot, C_ORANGE, 0);
-    lv_obj_set_style_bg_opa(brand_footer_dot, LV_OPA_COVER, 0);
-
+    /* Bottom strip: the brand now lives at the top-left, so the whole strip
+       belongs to the daily quote. Centred, full width, scrolls when long. */
     status_label = make_label(scr, "", C_SAGE_INK, &lv_font_montserrat_10);
-    lv_obj_set_pos(status_label, 92, 303);
-    lv_obj_set_width(status_label, 134);
-    lv_obj_set_style_text_align(status_label, LV_TEXT_ALIGN_RIGHT, 0);
+    lv_obj_set_pos(status_label, 14, 300);
+    lv_obj_set_width(status_label, 212);
+    lv_obj_set_style_text_align(status_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_long_mode(status_label, LV_LABEL_LONG_SCROLL_CIRCULAR);
 
     make_line(scr, 14, 292, 212, C_LINE);
@@ -329,6 +320,13 @@ extern "C" void ui_show_photo(const lv_img_dsc_t *image)
     if (!image || !photo_img) return;
     lv_obj_clear_flag(photo_img, LV_OBJ_FLAG_HIDDEN);
     set_photo_cover(image);
+}
+
+extern "C" void ui_hide_photo(void)
+{
+    if (photo_img) lv_obj_add_flag(photo_img, LV_OBJ_FLAG_HIDDEN);
+    if (photo_placeholder)
+        lv_obj_clear_flag(photo_placeholder, LV_OBJ_FLAG_HIDDEN);
 }
 
 extern "C" void ui_set_caption(const char *caption)

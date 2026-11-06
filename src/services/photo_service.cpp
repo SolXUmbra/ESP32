@@ -1,5 +1,7 @@
 #include "services/photo_service.h"
 
+#include <Arduino.h>          // esp_random() - hardware entropy source
+
 #include "sunisle/config.h"
 #include "sunisle/state.h"
 #include "hardware/storage_manager.h"
@@ -12,6 +14,19 @@ namespace {
 uint16_t s_cursor = 0;
 uint32_t s_lastSwitch = 0;
 char     s_status[48];
+
+// True-random pick from the ESP32 hardware RNG. Refusing to return `avoid`
+// means the same photo is never shown twice in a row, which is what "random
+// rotation" should feel like on a small frame. esp_random() is seeded by the
+// silicon itself, so the sequence differs on every power-up.
+uint16_t pickRandom(uint16_t n, uint16_t avoid) {
+  if (n < 2) return 0;
+  uint16_t r;
+  do {
+    r = static_cast<uint16_t>(esp_random() % n);
+  } while (r == avoid);
+  return r;
+}
 
 void refreshStatus() {
   uint16_t n = storage::photoCount();
@@ -27,7 +42,9 @@ void refreshStatus() {
 }  // namespace
 
 void begin() {
-  s_cursor = 0;
+  // Random starting photo too: with only 3 pictures, always opening on the
+  // same one would make the rotation look sequential.
+  s_cursor = pickRandom(count(), 0xFFFF);
   s_lastSwitch = millis();
   refreshStatus();
   Snapshot s = snapshot();
@@ -46,10 +63,10 @@ const char* currentPath() {
 void next() {
   uint16_t n = count();
   if (n == 0) return;
-  s_cursor = static_cast<uint16_t>((s_cursor + 1) % n);
+  s_cursor = pickRandom(n, s_cursor);
   s_lastSwitch = millis();
   refreshStatus();
-  SUN_LOG("photo", "-> %u/%u %s", s_cursor + 1, n, currentPath());
+  SUN_LOG("photo", "-> random %u/%u %s", s_cursor + 1, n, currentPath());
 }
 
 void advanceIfDue() {
