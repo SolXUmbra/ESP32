@@ -6,6 +6,7 @@
 
 extern const lv_font_t sunisle_cn_12;  // 12 px, date line + bottom logo
 extern const lv_font_t sunisle_cn_16;  // 16 px, weather description + city
+extern const lv_font_t sunisle_cn_memo;  // 16 px, memo/task/command text (runtime Chinese subset)
 extern const lv_font_t sunisle_cn_quote;  // 12 px, daily quote
 extern const lv_font_t sunisle_cn_28;  // 28 px, brand only, Kai for the splash
 extern const lv_font_t sunisle_cn_boot;  // 16 px, boot slogan (Kai)

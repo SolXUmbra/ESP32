@@ -60,16 +60,15 @@ void tickFrame() {
 
 void showPage(Page p) {
   s_page = p;
-  // The delivered UI intentionally exposes ONE calm home screen in phase 1;
-  // ui_show_photo_view() is a reserved hook that currently loads the same
-  // screen. We do not fabricate extra pages (that would be redesigning it).
-  if (p == Page::PHOTOS) ui_show_photo_view();
-  else                   ui_show_home();
+  // The B-version UI keeps ONE calm screen with a memo panel; the memo view
+  // hook currently loads the same screen (page switching stays serial-driven).
+  if (p == Page::MEMOS) ui_show_memo_view();
+  else                  ui_show_home();
   setPage(p);
   uiBridge::tick();
   const char* n = p == Page::HOME ? "HOME"
-                  : (p == Page::PHOTOS ? "PHOTOS" : "SETTINGS");
-  SUN_LOG("ui", "page -> %s (vendor UI keeps one screen in phase 1)", n);
+                  : (p == Page::MEMOS ? "MEMOS" : "SETTINGS");
+  SUN_LOG("ui", "page -> %s (single-screen memo UI)", n);
 }
 
 void tick1s() {

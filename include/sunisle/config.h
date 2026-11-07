@@ -1,4 +1,4 @@
-// SUNISLE non-secret build-time constants.
+// SUNISLE B - non-secret build-time constants.
 // Hardware values below are FROZEN: see HARDWARE_CONFIG.md and AUDIT_REPORT.md.
 // Secrets (Wi-Fi, device token) live in include/secrets.h (gitignored).
 #pragma once
@@ -25,7 +25,7 @@ constexpr bool    LCD_PIXEL_SWAP  = true;       // LVGL LE RGB565 -> SPI byte or
 constexpr uint8_t LCD_OFFSET_X    = 0;
 constexpr uint8_t LCD_OFFSET_Y    = 0;
 
-// ---- Backlight: confirmed from atlas-moments/src/hal/display.cpp:50-55 ----
+// ---- Backlight ----
 constexpr int8_t  BL_PIN       = 21;
 constexpr uint8_t BL_CHANNEL   = 0;
 constexpr uint32_t BL_PWM_FREQ = 5000;
@@ -51,38 +51,42 @@ constexpr uint32_t HEARTBEAT_MS      = 10000;
 constexpr uint32_t BOOT_FADE_MS      = 400;    // 米色淡入 0.4s
 constexpr uint32_t BOOT_HOLD_MS      = 5000;   // 画面清晰停留 5s
 constexpr uint32_t BOOT_TOTAL_MS     = 5400;   // 400 + 5000
-constexpr uint32_t SLIDESHOW_DEFAULT_MS = 5000;    // 5 秒随机轮换
-constexpr uint32_t SLIDESHOW_MIN_MS      = 3000;
-constexpr uint32_t SLIDESHOW_MAX_MS      = 300000;
 
-// ---- SD layout (task book section 8) ----
+// ---- Memo reminder module (B version) ----
+constexpr uint16_t MEMO_MAX_ENTRIES   = 40;     // soft-deleted rows stay on card
+constexpr uint8_t  MEMO_TEXT_MAX      = 64;     // UTF-8 bytes per memo title (~21 CJK chars)
+constexpr uint32_t MEMO_CHECK_MS      = 20000;  // due-check cadence
+constexpr uint32_t ALERT_HOLD_MS      = 30000;  // on-screen alert auto-dismiss
+constexpr uint32_t SNOOZE_DEFAULT_MS  = 600000; // 10 min
+constexpr uint32_t CMD_POLL_MS        = 60000;  // network command poll cadence
+
+// ---- SD layout (B version) ----
+// DATA SAFETY: every path we own lives under /SUNISLE/. Memo deletion is a
+// SOFT delete (state flag) and every write keeps a .bak copy first.
 constexpr const char* SD_ROOT        = "/SUNISLE";
 constexpr const char* DIR_CONFIG     = "/SUNISLE/config";
-constexpr const char* DIR_PHOTOS     = "/SUNISLE/photos";
-constexpr const char* DIR_THUMBS     = "/SUNISLE/photos/thumbnails";
+constexpr const char* DIR_MEMOS      = "/SUNISLE/memos";
 constexpr const char* DIR_WEATHER    = "/SUNISLE/weather";
 constexpr const char* DIR_SYSTEM     = "/SUNISLE/system";
 constexpr const char* FILE_DEVICE    = "/SUNISLE/config/device.json";
 constexpr const char* FILE_SETTINGS  = "/SUNISLE/config/settings.json";
-constexpr const char* FILE_INDEX     = "/SUNISLE/photos/index.json";
 constexpr const char* FILE_WEATHER   = "/SUNISLE/weather/cache.json";
 constexpr const char* FILE_SYNC      = "/SUNISLE/system/sync.json";
 constexpr const char* FILE_SYNC_LOG  = "/SUNISLE/system/sync.log";
+constexpr const char* FILE_MEMOS     = "/SUNISLE/memos/memos.tsv";
+constexpr const char* FILE_MEMOS_BAK = "/SUNISLE/memos/memos.bak";
+constexpr const char* FILE_TASKS     = "/SUNISLE/memos/tasks.tsv";
+constexpr const char* FILE_SKILLS    = "/SUNISLE/config/skills.tsv";
 
 // Reserve space; never fill the card.
 constexpr uint64_t SD_MIN_FREE_BYTES = 64ULL * 1024ULL * 1024ULL;
 
 // ---- Product identity ----
-// Home screen place label: always 渑池 in Chinese, independent of whether
-// the weather service is configured. The CJK font ships these two glyphs.
 constexpr const char* DISPLAY_CITY = "渑池";
 constexpr const char* PRODUCT_CN   = "晴屿";
 constexpr const char* PRODUCT_EN   = "SUNISLE";
 constexpr const char* SLOGAN_CN    = "把喜欢的时光，留在身边。";
 constexpr const char* SLOGAN_EN    = "A Little Island of Sunshine.";
-constexpr const char* FW_VERSION   = "SUNISLE 1.0.0-stage1";
-
-// Max number of photo paths kept in RAM (path strings only, never pixels).
-constexpr uint16_t MAX_PHOTO_ENTRIES = 200;
+constexpr const char* FW_VERSION   = "SUNISLE 2.0.0-B";
 
 }  // namespace sunisle

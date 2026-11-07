@@ -31,15 +31,14 @@ void stateInit() {
   memset(&s_state, 0, sizeof(s_state));
   s_state.state = SystemState::BOOT;
   s_state.page  = Page::HOME;
-  s_state.brightness   = 220;
-  s_state.slideshowMs  = SLIDESHOW_DEFAULT_MS;
+  s_state.brightness   = BL_DEFAULT;
   strcpy(s_state.timeHHMM, "--:--");
   strcpy(s_state.dateLine, "----.--.--");
   strcpy(s_state.weekday,  "---");
   strcpy(s_state.city,     "未配置");
   strcpy(s_state.weatherLine, "天气未配置");
-  // Honest stage-1 status: no network, no NTP, no weather, no photos yet.
-  strcpy(s_state.statusLine, "陪伴模式 / 网络未连接");
+  // Honest B-version status: no network, no NTP, no memos loaded yet.
+  strcpy(s_state.statusLine, "备忘模式 / 等待指令");
   if (!s_mux) s_mux = xSemaphoreCreateMutex();
 }
 

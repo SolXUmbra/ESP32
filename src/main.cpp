@@ -1,6 +1,7 @@
-// 晴屿 SUNISLE - stage 1 entry point.
-// Orchestration ONLY. All real work lives in the hardware/ services/ ui/
-// modules. LVGL is touched exclusively from this file's loop() / ui_manager.
+// 晴屿 SUNISLE B - memo/reminder edition entry point.
+// Orchestration ONLY. Real work lives in hardware/ services/ ui/ modules.
+// The serial console and the optional network poll both reach the SAME
+// commandService::execute() parser (CMD| / SKILL| / TASK| protocol).
 #include <Arduino.h>
 #include <lvgl.h>
 
@@ -13,11 +14,12 @@
 #include "hardware/storage_manager.h"
 #include "hardware/touch_manager.h"
 #include "services/time_service.h"
-#include "services/photo_service.h"
+#include "services/memo_service.h"
+#include "services/command_service.h"
+#include "services/cmd_link.h"
 #include "services/weather_service.h"
 #include "services/quote_service.h"
 #include "ui/ui_manager.h"
-#include "ui/ui_bridge.h"
 
 using namespace sunisle;
 
@@ -31,101 +33,61 @@ bool     s_diagMode = false;   // RAW display diagnostic holds the framebuffer
 void printBanner() {
   Serial.println();
   Serial.println(F("====================================="));
-  Serial.println(F("   晴屿 SUNISLE  /  STAGE 1"));
+  Serial.println(F("   晴屿 SUNISLE B / 备忘录提醒版"));
   Serial.printf("   %s  build %s %s\n", FW_VERSION, __DATE__, __TIME__);
-  Serial.println(F("   A Little Island of Sunshine."));
+  Serial.println(F("   CMD|help  for the WorkBuddy protocol"));
   Serial.println(F("====================================="));
 }
 
 void handleCommand(const String& raw) {
-  String c = raw;
-  c.trim();
-  if (c.length() == 0) return;
+  String line = raw;
+  line.trim();
+  if (!line.length()) return;
+
+  // Protocol lines keep their original case (values may contain UTF-8 text).
+  String head = line;
+  head.toUpperCase();
+  if (head.startsWith("CMD|") || head.startsWith("SKILL|") ||
+      head.startsWith("TASK|")) {
+    String reply;
+    commandService::execute(line, reply);
+    Serial.println(reply);
+    return;
+  }
+
+  String c = line;
   c.toUpperCase();
 
   if (c == "HELP") {
-    Serial.println(F("HELP | STATE | MEM | SD | TIME | WX | PAGE=home|photos|settings"));
-    Serial.println(F("BL=<0..255> | INTERVAL=<seconds> | RESCAN | NEXT | PHOTO=ON|OFF"));
-    Serial.println(F("DEL /SUNISLE/photos/NAME.JPG  (remove one photo before re-uploading)"));
-    Serial.println(F("DIAG (RAW GFX, LVGL bypassed) | UI (resume) | REBOOT"));
-    Serial.println(F("SDPROBE | SDPROBE=FULL (read-only SD bus matrix)"));
-    Serial.println(F("TOUCH | TOUCHPROBE | TOUCHPROBE=34  (find correct touch CS)"));
-    Serial.println(F("PUT /SUNISLE/photos/NAME.JPG <bytes>  (raw bytes follow)"));
-  } else if (c.startsWith("PUT ")) {
-    // The microSD lives inside the frame and this PC has no card reader, so
-    // the device itself is the writer. Protocol:
-    //   host -> "PUT /SUNISLE/photos/x.jpg 12345\n"
-    //   dev  -> "[put] READY 12345 /SUNISLE/photos/x.jpg"
-    //   host -> exactly 12345 raw bytes
-    //   dev  -> "[put] OK ..." / "[put] FAIL ..."
-    // LVGL pauses for the length of the transfer (a few seconds for a photo);
-    // the UI resumes on the next loop and the new file is rescanned at once.
-    String t = raw;
-    t.trim();
-    const int sp = t.indexOf(' ', 4);
-    if (sp < 0) {
-      Serial.println(F("[put] usage: PUT /SUNISLE/photos/name.jpg <bytes>"));
-      return;
-    }
-    String path = t.substring(4, sp);
-    const uint32_t size = static_cast<uint32_t>(t.substring(sp + 1).toInt());
-
-    if (!storage::isReady()) {
-      Serial.println(F("[put] ERR SD not ready"));
-      return;
-    }
-    if (!path.startsWith("/SUNISLE/photos/") || path.length() < 20) {
-      Serial.println(F("[put] ERR path must be /SUNISLE/photos/<name>.jpg"));
-      return;
-    }
-    if (size < 128 || size > 2UL * 1024UL * 1024UL) {
-      Serial.println(F("[put] ERR size out of range"));
-      return;
-    }
-    if (storage::fileExists(path.c_str())) {
-      Serial.println(F("[put] ERR file exists (never overwritten)"));
-      return;
-    }
-
-    while (Serial.available()) Serial.read();     // drop CR/LF remnants
-    Serial.printf("[put] READY %lu %s\n", static_cast<unsigned long>(size),
-                  path.c_str());
-    Serial.flush();
-
-    uint32_t written = 0;
-    const bool ok = storage::writeFromStream(path.c_str(), Serial, size, written);
-    Serial.printf("[put] %s %lu/%lu %s\n", ok ? "OK" : "FAIL",
-                  static_cast<unsigned long>(written),
-                  static_cast<unsigned long>(size), path.c_str());
-    if (ok) {
-      photoService::rescan();     // real rescan, no optimistic count
-      ui::tick1s();               // decode + show immediately
-    }
-  } else if (c.startsWith("DEL ")) {
-    // The PUT protocol never overwrites: to replace a photo, remove the old
-    // one first, then PUT the same name. Storage layer enforces that only a
-    // JPEG directly inside /SUNISLE/photos/ can be deleted.
-    String t = raw;
-    t.trim();
-    String path = t.substring(4);
-    path.trim();
-    const bool ok = storage::deletePhoto(path.c_str());
-    Serial.printf("[del] %s %s\n", ok ? "OK" : "FAILED", path.c_str());
-    if (ok) photoService::rescan();   // keep cursor + path list consistent
+    Serial.println(F("HELP | STATE | MEM | SD | TIME | WX | CMOS | PAGE=home|memos|settings"));
+    Serial.println(F("CMD|help            (WorkBuddy protocol v1)"));
+    Serial.println(F("CMD|status | CMD|list | CMD|add|text=..|at=HH:MM"));
+    Serial.println(F("SKILL|GET | SKILL|SET|memo.lead_min=10"));
+    Serial.println(F("TASK|ADD|name=..|steps=a;b;c | TASK|LIST"));
+    Serial.println(F("MEMO (dump) | BL=<0..255> | DIAG | UI | REBOOT"));
+    Serial.println(F("SDPROBE | SDPROBE=FULL | TOUCH | TOUCHPROBE | TOUCHPROBE=34"));
   } else if (c == "WX") {
     weatherService::dump();
   } else if (c == "STATE") {
     Snapshot s = snapshot();
     Serial.printf("[state] state=%s page=%u sd=%s time=%s wifi=%s "
-                  "weatherCfg=%s weatherValid=%s photos=%u\n",
+                  "weatherCfg=%s weatherValid=%s memos=%u due=%u tasks=%u\n",
                   stateName(s.state), static_cast<unsigned>(s.page),
                   s.sdReady ? "YES" : "NO",
                   s.timeSynced ? s.timeHHMM : "UNSYNCED",
                   s.wifiOn ? "ON" : "OFF",
                   s.weatherConfigured ? "YES" : "NO",
-                  s.weatherValid ? "YES" : "NO", s.photoCount);
-    Serial.printf("[state] date=%s %s city=%s weather=%s\n",
-                  s.dateLine, s.weekday, s.city, s.weatherLine);
+                  s.weatherValid ? "YES" : "NO",
+                  static_cast<unsigned>(s.memoCount),
+                  static_cast<unsigned>(s.dueCount),
+                  static_cast<unsigned>(commandService::taskCount()));
+    Serial.printf("[state] date=%s %s city=%s weather=%s alert=%s\n",
+                  s.dateLine, s.weekday, s.city, s.weatherLine,
+                  s.activeMemo[0] ? s.activeMemo : "none");
+  } else if (c == "MEMO") {
+    memoService::dump();
+  } else if (c == "CMOS" || c == "PROTO") {
+    commandService::dump();
   } else if (c == "MEM") {
     memory::dump();
   } else if (c == "SD") {
@@ -135,10 +97,10 @@ void handleCommand(const String& raw) {
   } else if (c.startsWith("PAGE=")) {
     String p = c.substring(5);
     Page page = Page::HOME;
-    if (p == "PHOTOS") page = Page::PHOTOS;
+    if (p == "MEMOS") page = Page::MEMOS;
     else if (p == "SETTINGS") page = Page::SETTINGS;
     else if (p != "HOME") {
-      Serial.println(F("[cmd] usage: PAGE=home|photos|settings"));
+      Serial.println(F("[cmd] usage: PAGE=home|memos|settings"));
       return;
     }
     s_diagMode = false;
@@ -152,31 +114,6 @@ void handleCommand(const String& raw) {
     storage::saveSettings(s);
     Serial.printf("[cmd] brightness=%u\n", v);
     ui::tick1s();
-  } else if (c.startsWith("INTERVAL=")) {
-    uint32_t sec = c.substring(9).toInt();
-    if (sec < 3 || sec > 300) {
-      Serial.println(F("[cmd] INTERVAL=<3..300 seconds>"));
-      return;
-    }
-    Snapshot s = snapshot();
-    s.slideshowMs = sec * 1000UL;
-    publish(s);
-    storage::saveSettings(s);
-    Serial.printf("[cmd] slideshow interval=%lus\n",
-                  static_cast<unsigned long>(sec));
-    ui::tick1s();
-  } else if (c == "RESCAN") {
-    if (!storage::isReady()) storage::remount();
-    photoService::rescan();
-    ui::tick1s();
-  } else if (c == "NEXT") {
-    photoService::next();
-    ui::tick1s();
-  } else if (c.startsWith("PHOTO=")) {
-    const bool on = !c.endsWith("OFF");
-    uiBridge::setPhotoEnabled(on);
-    Serial.printf("[cmd] photo display %s\n", on ? "ON" : "OFF");
-    ui::tick1s();
   } else if (c == "SDPROBE" || c == "SDPROBE=FULL") {
     storage::runProbe(c == "SDPROBE=FULL");
   } else if (c == "TOUCH") {
@@ -188,14 +125,12 @@ void handleCommand(const String& raw) {
                   static_cast<unsigned>(x), static_cast<unsigned>(y),
                   static_cast<int>(TOUCH_CS));
   } else if (c.startsWith("TOUCHPROBE")) {
-    // Re-probe candidate CS pins to find the one the controller answers on.
-    // Usage: TOUCHPROBE  (tries 33,32,34)  |  TOUCHPROBE=34
-    int cand[4] = {33, 32, 34, 15};   // 15 is LCD CS -> must stay quiet
+    int cand[3] = {33, 32, 34};   // candidate touch CS pins
     int n = 3;
     String t = raw; t.trim();
     if (t.indexOf('=') >= 0) {
-      int v = t.substring(t.indexOf('=') + 1).toInt();
-      cand[0] = v; n = 1;
+      cand[0] = t.substring(t.indexOf('=') + 1).toInt();
+      n = 1;
     }
     for (int i = 0; i < n; ++i) {
       const bool ok = display::touchProbe(static_cast<int8_t>(cand[i]));
@@ -206,8 +141,6 @@ void handleCommand(const String& raw) {
     }
     Serial.println(F("[touchprobe] set TOUCH_CS in include/sunisle/config.h to the OK pin"));
   } else if (c == "DIAG") {
-    // Raw LovyanGFX pattern: if this is visible but the UI is not, the fault
-    // is in LVGL; if it is blank too, it is hardware/SPI/backlight.
     s_diagMode = true;
     display::drawRawDiagnostic();
     Serial.println(F("[cmd] RAW diagnostic held. Send UI to resume LVGL."));
@@ -221,26 +154,21 @@ void handleCommand(const String& raw) {
     delay(100);
     ESP.restart();
   } else {
-    Serial.printf("[cmd] unknown: %s\n", c.c_str());
+    Serial.printf("[cmd] unknown: %s (try HELP or CMD|help)\n", c.c_str());
   }
 }
 
 }  // namespace
 
 void setup() {
-  // 8 KB RX buffer: a photo upload streams ~30 KB at 115200 while the network
-  // task may be logging at the same time. With the default 256 B FIFO the
-  // host overruns it and the transfer ends short (observed: 30361/32167 B).
-  Serial.setRxBufferSize(8192);
+  // Protocol lines can carry UTF-8 memos; keep a generous RX buffer.
+  Serial.setRxBufferSize(4096);
   Serial.begin(115200);
   delay(300);
   printBanner();
 
   stateInit();
   memory::sample();
-
-  // Diagnostic only: is SD I/O healthy BEFORE LovyanGFX claims the HSPI bus?
-  // The audited project never tested a real FAT read, only cardSize().
   storage::preDisplayProbe();
 
   if (!display::begin()) {
@@ -248,17 +176,19 @@ void setup() {
     setState(SystemState::ERROR_RECOVERY);
     return;
   }
-  touch::begin();           // XPT2046 on shared HSPI (bus_safe); see display_manager
+  touch::begin();
   storage::begin();         // degrades gracefully when no card is present
   timeService::begin();
-  photoService::begin();
+  memoService::begin();     // loads memos.tsv (soft-delete table)
+  commandService::begin();  // loads skills.tsv + tasks.tsv
+  cmdLink::begin();         // network poll is opt-in via secrets.h
   weatherService::begin();
   quoteService::begin();
   ui::begin();
-  lv_refr_now(nullptr);     // first full frame
+  lv_refr_now(nullptr);
 
-  Serial.println(F("[boot] HELP for commands"));
-  Serial.printf("[boot] STAGE 1 READY heap=%u B flush=%u\n",
+  Serial.println(F("[boot] HELP / CMD|help for commands"));
+  Serial.printf("[boot] B READY heap=%u B flush=%u\n",
                 static_cast<unsigned>(ESP.getFreeHeap()),
                 static_cast<unsigned>(display::flushCount()));
   s_lastTick = s_lastHeartbeat = millis();
@@ -267,7 +197,7 @@ void setup() {
 void loop() {
   if (display::isReady() && !s_diagMode) {
     lv_timer_handler();
-    ui::tickFrame();          // boot fade / automatic transition to Home
+    ui::tickFrame();
   }
   memory::sample();
 
@@ -276,30 +206,39 @@ void loop() {
     s_lastTick = now;
     timeService::tick();
     weatherService::tick();
-    quoteService::tick();      // re-pick if the local day rolled over
-    if (!ui::bootActive()) photoService::advanceIfDue();
-    ui::tick1s();
+    quoteService::tick();
+    memoService::tick();     // due-check + alert auto-dismiss
+    ui::tick1s();            // pushes memo list / alert to LVGL
   }
 
   while (Serial.available()) {
     char ch = static_cast<char>(Serial.read());
     if (ch == '\n' || ch == '\r') {
       if (s_cmd.length()) { handleCommand(s_cmd); s_cmd.clear(); }
-    } else if (s_cmd.length() < 63) {
+    } else if (s_cmd.length() < 255) {
       s_cmd += ch;
     }
+  }
+
+  if (commandService::rebootPending()) {
+    Serial.flush();
+    delay(100);
+    ESP.restart();
   }
 
   if (now - s_lastHeartbeat >= HEARTBEAT_MS) {
     s_lastHeartbeat = now;
     Snapshot s = snapshot();
     Serial.printf("[hb] up=%lus heap=%uKB min=%uKB state=%s page=%u "
-                  "sd=%s photos=%u flush=%u\n",
+                  "sd=%s memos=%u due=%u tasks=%u flush=%u\n",
                   static_cast<unsigned long>(millis() / 1000),
                   static_cast<unsigned>(ESP.getFreeHeap() / 1024),
                   static_cast<unsigned>(memory::minHeap() / 1024),
                   stateName(s.state), static_cast<unsigned>(s.page),
-                  s.sdReady ? "YES" : "NO", s.photoCount,
+                  s.sdReady ? "YES" : "NO",
+                  static_cast<unsigned>(s.memoCount),
+                  static_cast<unsigned>(s.dueCount),
+                  static_cast<unsigned>(commandService::taskCount()),
                   static_cast<unsigned>(display::flushCount()));
   }
 

@@ -23,7 +23,7 @@ bool touchProbe(int8_t cs);      // runtime CS re-probe (TOUCHPROBE command)
 // bypassed, to tell a hardware/SPI fault from a UI-layer fault.
 void drawRawDiagnostic();
 
-// Stage 2 hook: raw RGB565 rectangle push, used by the JPEG path.
+// Raw RGB565 rectangle push (kept for diagnostics / future overlays).
 void pushRect(int32_t x, int32_t y, int32_t w, int32_t h, const uint16_t* px);
 
 }  // namespace display

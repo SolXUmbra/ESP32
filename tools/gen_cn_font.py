@@ -61,6 +61,37 @@ UI_STRINGS = [
     "渑池",
 ]
 
+# ---------------------------------------------------------------------------
+# B version: memo/task text arrives at RUNTIME (serial console or WorkBuddy
+# directives), so a fixed phrase list is not enough. This curated everyday-CJK
+# subset covers user-authored memos. Characters outside it render as a blank
+# box - append them here and regenerate when a workflow needs them. Cost at
+# 16 px / 4bpp is 128 B per glyph, so keep the list intentional.
+# ---------------------------------------------------------------------------
+MEMO_CHARS = "".join([
+    # module vocabulary
+    "备忘录提醒任务指令技能配置综合完成延期取消添加删除列表状态到期",
+    "今天明天后天早上中午晚上上午下午夜间凌晨分钟小时秒钟每日每周每月重复",
+    "稍后轻触屏幕显示亮度天气时钟网络同步连接断开开关启用关闭保存读取写入",
+    "成功失败错误警告暂无等待数据设备系统版本重启更新检查确认返回首页设置",
+    "时间日期星期年月分点号字词标题内容文本编号序号优先紧急普通重要一般",
+    "高低开始结束继续暂停进行查看签字盖章付款报销预约剩余全部部分当前",
+    # everyday errands
+    "开会吃药接孩子买菜缴费交报告打电话发邮件取快递看医生锻炼喝水休息",
+    "睡觉起床出门回家上班下班做饭洗衣打扫收拾准备购物超市银行邮局车站机场",
+    "饭菜水果牛奶面包咖啡茶药钥匙钱包手机电脑文件资料合同发票银行卡",
+    "身份证护照车票机票门禁外卖医院学校公司客户同事朋友家人工资房租",
+    "水电燃气宽带物业停车加油保险体检牙医理发旅游出差拜访聚会生日纪念日",
+    # common function words / states
+    "的了在是我有和就不人都一个上也很到说要去你会着没看好自己这他那它",
+    "我们你们他们什么怎么为什么因为所以但是如果可以能够需要应该必须可能",
+    "已经正在将要别再又还最更太非常大约左右前后内外上下忙累困饿渴",
+    "舒服难受开心难过生气担心放心着急顺利安全注意小心记得忘带把被给从向",
+    "请帮拿放找带送等走坐站洗换修买付记写读听说看用做去来回到过完",
+    # CJK punctuation + numerals (U+3000+ is kept by the CJK filter)
+    "，。：；！？（）【】、·零一二三四五六七八九十百千万半第条项个次件",
+])
+
 BRAND_CHARS = "晴屿"
 
 # ---------------------------------------------------------------------------
@@ -124,6 +155,11 @@ SPECS = [
      "chars": "".join(["把喜欢的时光，留在身边。"] + WEATHER_STRINGS),
      "fallback": "lv_font_montserrat_16",
      "comment": "weather description + city"},
+    # B version: runtime memo/task/alert text (user-authored Chinese).
+    {"name": "sunisle_cn_memo", "size": 16,
+     "chars": "".join([MEMO_CHARS] + UI_STRINGS + [BRAND_CHARS, DATE_CHARS]),
+     "fallback": "lv_font_montserrat_16",
+     "comment": "memo/task/command text (runtime Chinese subset)"},
     # daily quote line (its own subset so the main date font stays small)
     {"name": "sunisle_cn_quote", "size": 12,
      "chars": "".join(QUOTES),

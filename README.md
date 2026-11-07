@@ -1,13 +1,43 @@
-# 晴屿 SUNISLE
+# 晴屿 SUNISLE B
 
 > 把喜欢的时光，留在身边。 / *A Little Island of Sunshine.*
 
-一台专属于个人的桌面照片陪伴设备：展示珍藏照片、日期、时间和天气。
-本阶段**只做照片相册、天气、时钟和精致 UI**；不做蓝牙、音乐、播放器。
+一台桌面**备忘录提醒**设备：备忘列表、到点弹窗提醒、日期时间与天气，
+并接收 WorkBuddy 下发的 `CMD|` / `SKILL|` / `TASK|` 指令。相册模块已移除。
+
+> **版本说明**：本分支 `b-version` 为 B 版。A 版（相册）完整保留在 `main`
+> 分支与 `vA` 标签（`D:/ESP32/sunisle/`），源码、构建产物与本地配置均未改动。
 
 ---
 
-## 当前状态（2026-11-06 19:05 实测）
+## B 版速览（2026-11-08）
+
+| 能力 | 说明 |
+| --- | --- |
+| 备忘录 | `memos.tsv` 本地持久化、软删除 + `.bak` 备份、到点触发、稍后提醒、每日/每周重复 |
+| 提醒交互 | 屏幕弹卡片，轻触即完成；30 秒自动收起 |
+| 技能配置 | `SKILL|SET|memo.lead_min=10` 等，存 `skills.tsv`，`display.brightness` 即时生效 |
+| 综合任务 | `TASK|ADD|name=..|steps=a;b;c`，每推进一步生成一条备忘提醒 |
+| 下达指令 | 串口与可选 HTTP 轮询共用 `commandService::execute()`，统一 `ACK|` / `ERR|` 回执 |
+| 网络下发 | 默认关闭；在 `include/secrets.h` 填 `SUNISLE_CMD_HOST` 即启用（纯 HTTP，无 TLS） |
+| 中文字库 | `sunisle_cn_memo`：414 个日常常用字子集；超出字符需加进 `MEMO_CHARS` 重新生成 |
+
+编译：`Flash 90.3% (1,184,157 B)` / `RAM 27.8%`，余量约 123.6 KB。
+设备尚未实机烧录验证（COM5 未接入）。
+
+串口速试：
+```
+CMD|help
+CMD|add|text=开会|at=09:30
+CMD|add|text=喝水|in=10
+CMD|list
+TASK|ADD|name=晨间流程|steps=起床;喝水;出门
+SKILL|GET
+```
+
+---
+
+## A 版历史状态（2026-11-06 19:05 实测，仅存档）
 
 | 阶段 | 状态 |
 | --- | --- |
