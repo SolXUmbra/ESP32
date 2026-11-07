@@ -110,7 +110,7 @@ QUOTES = [
 # Each spec declares its own Montserrat fallback so ASCII keeps the exact
 # metrics the vendor layout was designed around.
 # Each size ships ONLY the glyphs it can actually be asked to draw: the app
-# partition is 1.25 MB and every CJK glyph at 16 px costs 256 B of bitmap.
+# partition is 1.25 MB and a 4bpp CJK glyph at 16 px costs 128 B of bitmap.
 SPECS = [
     # date ("11月06日  星期五") + "未校时" when unsynced + the two brand
     # chars "晴屿" for the bottom-left logo. The weather description and city
@@ -150,7 +150,15 @@ def load_font(size, which="hei"):
 
 
 def render_glyph(font, ch, size):
-    """Render one char into a size x size 8bpp alpha box, visually centred."""
+    """Render one char into a size x size 4bpp alpha box, visually centred.
+
+    LVGL's 4bpp format packs two horizontally adjacent pixels per byte with the
+    FIRST pixel in the HIGH nibble (bitmask_init = 0xF0 in lv_draw_sw_letter.c).
+    _lv_bpp4_opa_table maps level i -> i*17, so quantising with (px+8)//17 is
+    the closest possible round-trip: 16 shades instead of 256, visually near
+    identical at 12-28 px, at HALF the bitmap size.
+    All SPECS sizes are even, so each row ends exactly on a byte boundary.
+    """
     img = Image.new("L", (size, size), 0)
     d = ImageDraw.Draw(img)
     x0, y0, x1, y1 = font.getbbox(ch)
@@ -158,7 +166,13 @@ def render_glyph(font, ch, size):
     ox = (size - gw) // 2 - x0
     oy = (size - gh) // 2 - y0
     d.text((ox, oy), ch, font=font, fill=255)
-    return bytes(img.getdata())
+    px = img.tobytes()  # "L" mode: exactly one byte per pixel, row-major
+    packed = bytearray()
+    for i in range(0, len(px), 2):
+        hi = (px[i] + 8) // 17
+        lo = (px[i + 1] + 8) // 17 if i + 1 < len(px) else 0
+        packed.append((hi << 4) | lo)
+    return bytes(packed)
 
 
 def emit_c_array(name, data, per_line=16):
@@ -206,7 +220,7 @@ def generate():
     out.append("// " + ", ".join("%s=%d glyphs/%dB" %
                                  (s["name"], len(s["unique"]), len(s["bitmap"]))
                                  for s in specs))
-    out.append("// 8bpp alpha, uniform square boxes, Montserrat fallback for ASCII.")
+    out.append("// 4bpp alpha (2 px/byte, high nibble first), Montserrat fallback for ASCII.")
     out.append("")
     out.append('#include "fonts/sunisle_cn.h"')
     out.append('#include "lvgl.h"')
@@ -235,7 +249,7 @@ def generate():
         out.append("};")
         out.append("")
         out.append("static lv_font_fmt_txt_dsc_t font_dsc_%s = {" % nm)
-        out.append("    bitmap_%s, glyph_dsc_%s, cmap_%s, nullptr, 0, 1, 8, 0, 0, nullptr" %
+        out.append("    bitmap_%s, glyph_dsc_%s, cmap_%s, nullptr, 0, 1, 4, 0, 0, nullptr" %
                    (nm, nm, nm))
         out.append("};")
         out.append("")
