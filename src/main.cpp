@@ -49,6 +49,7 @@ void handleCommand(const String& raw) {
     Serial.println(F("DEL /SUNISLE/photos/NAME.JPG  (remove one photo before re-uploading)"));
     Serial.println(F("DIAG (RAW GFX, LVGL bypassed) | UI (resume) | REBOOT"));
     Serial.println(F("SDPROBE | SDPROBE=FULL (read-only SD bus matrix)"));
+    Serial.println(F("TOUCH | TOUCHPROBE | TOUCHPROBE=34  (find correct touch CS)"));
     Serial.println(F("PUT /SUNISLE/photos/NAME.JPG <bytes>  (raw bytes follow)"));
   } else if (c.startsWith("PUT ")) {
     // The microSD lives inside the frame and this PC has no card reader, so
@@ -178,6 +179,32 @@ void handleCommand(const String& raw) {
     ui::tick1s();
   } else if (c == "SDPROBE" || c == "SDPROBE=FULL") {
     storage::runProbe(c == "SDPROBE=FULL");
+  } else if (c == "TOUCH") {
+    uint16_t x = 0, y = 0;
+    const bool pressed = display::touchRead(&x, &y);
+    Serial.printf("[touch] ready=%s pressed=%s x=%u y=%u (cs=%d)\n",
+                  display::touchReady() ? "YES" : "NO",
+                  pressed ? "YES" : "no",
+                  static_cast<unsigned>(x), static_cast<unsigned>(y),
+                  static_cast<int>(TOUCH_CS));
+  } else if (c.startsWith("TOUCHPROBE")) {
+    // Re-probe candidate CS pins to find the one the controller answers on.
+    // Usage: TOUCHPROBE  (tries 33,32,34)  |  TOUCHPROBE=34
+    int cand[4] = {33, 32, 34, 15};   // 15 is LCD CS -> must stay quiet
+    int n = 3;
+    String t = raw; t.trim();
+    if (t.indexOf('=') >= 0) {
+      int v = t.substring(t.indexOf('=') + 1).toInt();
+      cand[0] = v; n = 1;
+    }
+    for (int i = 0; i < n; ++i) {
+      const bool ok = display::touchProbe(static_cast<int8_t>(cand[i]));
+      uint16_t x = 0, y = 0;
+      const bool reads = ok && display::touchRead(&x, &y);
+      Serial.printf("[touchprobe] cs=%d init=%s read=%s\n", cand[i],
+                    ok ? "OK" : "fail", reads ? "YES" : "no");
+    }
+    Serial.println(F("[touchprobe] set TOUCH_CS in include/sunisle/config.h to the OK pin"));
   } else if (c == "DIAG") {
     // Raw LovyanGFX pattern: if this is visible but the UI is not, the fault
     // is in LVGL; if it is blank too, it is hardware/SPI/backlight.
@@ -221,7 +248,7 @@ void setup() {
     setState(SystemState::ERROR_RECOVERY);
     return;
   }
-  touch::begin();           // intentionally HELD OFF, see touch_manager.h
+  touch::begin();           // XPT2046 on shared HSPI (bus_safe); see display_manager
   storage::begin();         // degrades gracefully when no card is present
   timeService::begin();
   photoService::begin();

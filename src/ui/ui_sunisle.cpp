@@ -1,6 +1,7 @@
 #include "ui_sunisle.h"
 #include <string.h>
 #include <stdio.h>
+#include "services/photo_service.h"   // tap-to-advance slideshow
 
 /* ----------------------------- Palette ---------------------------------- */
 #define C_BG          lv_color_hex(0xF7F4EC)  // warm ivory
@@ -281,6 +282,23 @@ static void create_home(void)
     lv_label_set_long_mode(status_label, LV_LABEL_LONG_SCROLL_CIRCULAR);
 
     make_line(scr, 14, 292, 212, C_LINE);
+
+    /* Touch: a transparent, top-most, click-only layer so a tap anywhere on the
+       frame advances the slideshow (natural photo-frame UX). It has no visual
+       style, so the layout is untouched; LVGL pointer input comes from the
+       XPT2046 wired through display_manager's shared-HSPI indev. */
+    lv_obj_t* touch_catcher = lv_obj_create(scr);
+    lv_obj_remove_style_all(touch_catcher);
+    lv_obj_set_size(touch_catcher, SCREEN_W, SCREEN_H);
+    lv_obj_set_pos(touch_catcher, 0, 0);
+    lv_obj_add_flag(touch_catcher, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_clear_flag(touch_catcher, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_clear_flag(touch_catcher, LV_OBJ_FLAG_GESTURE_BUBBLE);
+    lv_obj_add_event_cb(touch_catcher,
+                        [](lv_event_t* e) {
+                          if (e->code == LV_EVENT_CLICKED) sunisle::photoService::next();
+                        },
+                        LV_EVENT_CLICKED, nullptr);
 
     /* These handles are reserved for future page switching. */
     home_group = scr;

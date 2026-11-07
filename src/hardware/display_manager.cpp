@@ -5,6 +5,7 @@
 #include "utils/logger.h"
 
 #include <LovyanGFX.hpp>
+#include <lgfx/v1/touch/Touch_XPT2046.hpp>
 
 namespace sunisle {
 namespace display {
@@ -12,9 +13,14 @@ namespace {
 
 // Only ONE panel driver is compiled in. The audited project needed four for
 // its diagnostic scanner; SUNISLE uses the visually VERIFIED ST7789 profile.
+
+// Declared before the class so the constructor can flag touch readiness.
+static bool s_touchReady = false;
+
 class SunisleLGFX : public lgfx::LGFX_Device {
-  lgfx::Bus_SPI      _bus;
-  lgfx::Panel_ST7789 _panel;
+  lgfx::Bus_SPI       _bus;
+  lgfx::Panel_ST7789  _panel;
+  lgfx::Touch_XPT2046 _touch;   // rides the panel's HSPI bus (bus_shared)
 
  public:
   SunisleLGFX() {
@@ -45,6 +51,44 @@ class SunisleLGFX : public lgfx::LGFX_Device {
     pc.rgb_order    = LCD_RGB_ORDER;
     _panel.config(pc);
     setPanel(&_panel);
+
+    // Touch: XPT2046 rides the SAME HSPI bus as the LCD (bus_shared=true).
+    // This is the bus-safe path the audit called for: LovyanGFX arbitrates SPI
+    // transactions between panel writes and touch reads, so reading the touch
+    // can never blank the panel the way the old software-bitbang probe did.
+    // Only the touch CS pin differs from the LCD; the SPI pins are identical.
+    auto tc = _touch.config();
+    tc.spi_host  = HSPI_HOST;     // same host as the panel bus
+    tc.pin_sclk  = LCD_SCLK;      // 14
+    tc.pin_mosi  = LCD_MOSI;      // 13
+    tc.pin_miso  = LCD_MISO;      // 12
+    tc.pin_cs    = TOUCH_CS;      // 33 (best-guess CYD; verify on hardware)
+    tc.pin_int   = TOUCH_IRQ;     // 36 (optional; polled if -1)
+    tc.freq      = 1000000;
+    tc.bus_shared = true;
+    tc.x_min = 300; tc.x_max = 3900;   // XPT2046 raw calibration (tune on hw)
+    tc.y_min = 400; tc.y_max = 3900;
+    tc.offset_rotation = 0;
+    _touch.config(tc);
+    if (_touch.init()) {
+      _panel.setTouch(&_touch);
+      s_touchReady = true;
+      SUN_LOG("display", "TOUCH ready (XPT2046, shared HSPI, cs=%d)",
+              static_cast<int>(TOUCH_CS));
+    } else {
+      SUN_LOG("display", "TOUCH init FAILED (check TOUCH_CS=%d wiring)",
+              static_cast<int>(TOUCH_CS));
+    }
+  }
+
+  // Runtime CS re-probe for TOUCHPROBE (used to find the correct pin).
+  bool probeTouchCS(int8_t cs) {
+    auto tc = _touch.config();
+    tc.pin_cs = cs;
+    _touch.config(tc);
+    s_touchReady = _touch.init();
+    if (s_touchReady) _panel.setTouch(&_touch);
+    return s_touchReady;
   }
 };
 
@@ -55,6 +99,24 @@ inline uint16_t rgb565(uint8_t r, uint8_t g, uint8_t b) {
 SunisleLGFX* s_gfx = nullptr;
 bool         s_ready = false;
 uint32_t     s_flushCount = 0;
+
+static lv_indev_drv_t s_indevDrv;
+static lv_indev_t*    s_indev = nullptr;
+
+// LVGL pointer input callback: forwards the XPT2046 read into LVGL.
+static void touchReadCb(lv_indev_drv_t* drv, lv_indev_data_t* data) {
+  (void)drv;
+  uint16_t x = 0, y = 0;
+  if (s_ready && s_gfx && s_touchReady) {
+    if (s_gfx->getTouch(&x, &y) > 0) {
+      data->point.x = static_cast<lv_coord_t>(x);
+      data->point.y = static_cast<lv_coord_t>(y);
+      data->state = LV_INDEV_STATE_PRESSED;
+      return;
+    }
+  }
+  data->state = LV_INDEV_STATE_RELEASED;
+}
 
 static lv_disp_draw_buf_t s_drawBuf;
 static lv_disp_drv_t      s_dispDrv;
@@ -101,6 +163,17 @@ bool begin() {
   s_dispDrv.draw_buf = &s_drawBuf;
   lv_disp_drv_register(&s_dispDrv);
 
+  // Register the touch pointer device. Harmless if touch init failed
+  // (s_touchReady stays false and no indev is created).
+  if (s_touchReady) {
+    lv_indev_drv_init(&s_indevDrv);
+    s_indevDrv.type = LV_INDEV_TYPE_POINTER;
+    s_indevDrv.read_cb = &touchReadCb;
+    s_indevDrv.disp = lv_disp_get_default();
+    s_indev = lv_indev_drv_register(&s_indevDrv);
+    SUN_LOG("display", "LVGL pointer indev registered");
+  }
+
   s_ready = true;
   SUN_LOG("display", "READY ST7789 %dx%d HSPI 20MHz swap=%d buf=%uB",
           SCREEN_W, SCREEN_H, LCD_PIXEL_SWAP ? 1 : 0,
@@ -140,6 +213,18 @@ void pushRect(int32_t x, int32_t y, int32_t w, int32_t h, const uint16_t* px) {
   s_gfx->setAddrWindow(x, y, w, h);
   s_gfx->writePixels(px, w * h, LCD_PIXEL_SWAP);
   s_gfx->endWrite();
+}
+
+bool touchReady() { return s_touchReady; }
+
+bool touchRead(uint16_t* x, uint16_t* y) {
+  if (!s_ready || !s_gfx || !s_touchReady) return false;
+  return s_gfx->getTouch(x, y) > 0;
+}
+
+bool touchProbe(int8_t cs) {
+  if (!s_gfx) return false;
+  return s_gfx->probeTouchCS(cs);
 }
 
 }  // namespace display

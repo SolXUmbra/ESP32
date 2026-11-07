@@ -1,10 +1,10 @@
-// Touch is deliberately DISABLED in SUNISLE stage 1.
+// Touch: XPT2046 on the LCD's shared HSPI bus, driven through LovyanGFX's
+// bus_shared transaction arbitration (set up in display_manager.cpp). This is
+// the bus-safe path the audit called for and no longer blanks the panel.
 //
-// HARDWARE FACT (audited project, 16:29 real-board confirmation):
-// XPT2046 shares the LCD HSPI pins 14/13/12 (only CS differs). Reconfiguring
-// those pins with pinMode()/digitalWrite() detaches them from the ESP32 SPI
-// peripheral and BLANKS the panel. No LVGL indev is registered.
-// Task book: "触摸不稳定时优先保证自动运行" -> navigation uses serial commands.
+// HARDWARE FACT: the touch shares LCD HSPI pins 14/13/12 (only CS differs).
+// The CS pin is a best-guess (TOUCH_CS=33, see HARDWARE_CONFIG.md) and is
+// confirmed at runtime via the TOUCH / TOUCHPROBE serial commands.
 #pragma once
 
 #include <Arduino.h>
@@ -13,7 +13,7 @@ namespace sunisle {
 namespace touch {
 
 void begin();
-bool isReady();       // always false in stage 1
+bool isReady();       // true once LovyanGFX initialised the controller
 const char* reason();
 
 }  // namespace touch

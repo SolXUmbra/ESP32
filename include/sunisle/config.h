@@ -35,6 +35,12 @@ constexpr uint8_t BL_DEFAULT   = 220;
 // ---- SD: VSPI, separate host from the LCD HSPI bus ----
 constexpr int8_t SD_CS = 5;
 
+// ---- Touch: XPT2046 shares the LCD HSPI bus (14/13/12); only CS differs ----
+// Best-guess 2.8" CYD wiring (HARDWARE_CONFIG.md, UNVERIFIED). Confirm on
+// hardware via the TOUCH / TOUCHPROBE serial commands before relying on it.
+constexpr int8_t  TOUCH_CS  = 33;
+constexpr int8_t  TOUCH_IRQ = 36;
+
 // ---- LVGL ----
 constexpr uint16_t LVGL_BUF_LINES = 12;         // 240*12 px partial buffer
 
