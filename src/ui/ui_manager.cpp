@@ -43,14 +43,27 @@ void begin() {
 void tickFrame() {
   if (!s_veil) return;
   const uint32_t e = millis() - s_bootStart;
-  const lv_opa_t opa = static_cast<lv_opa_t>(
-      e >= BOOT_FADE_MS ? 0 : (255 - (e * 255 / BOOT_FADE_MS)));
+
+  // Three-phase veil opacity: fade IN (255 -> 0), hold (0), fade OUT (0 -> 255).
+  // The veil is rice-paper coloured, so the fade-out melts the boot into the
+  // same ground the HOME page uses - the handoff at the end is seamless.
+  lv_opa_t opa;
+  if (e < BOOT_FADE_MS) {
+    opa = static_cast<lv_opa_t>(255 - (e * 255 / BOOT_FADE_MS));
+  } else if (e < BOOT_FADE_MS + BOOT_HOLD_MS) {
+    opa = LV_OPA_TRANSP;
+  } else if (e < BOOT_TOTAL_MS) {
+    const uint32_t o = e - BOOT_FADE_MS - BOOT_HOLD_MS;
+    opa = static_cast<lv_opa_t>((o * 255 / BOOT_FADE_OUT_MS));
+  } else {
+    opa = LV_OPA_COVER;
+  }
   lv_obj_set_style_bg_opa(s_veil, opa, LV_PART_MAIN);
 
-  // One linear progress sweep; only touch the widget when the integer percent
-  // changes, so the 5 ms loop does not invalidate the whole bar every frame.
-  uint8_t pct = static_cast<uint8_t>(
-      e >= BOOT_TOTAL_MS ? 100 : (e * 100 / BOOT_TOTAL_MS));
+  // One linear progress sweep across fade-in + hold; it stays full during the
+  // fade-out. Only touch the widget when the integer percent changes.
+  const uint32_t ptotal = BOOT_FADE_MS + BOOT_HOLD_MS;
+  uint8_t pct = static_cast<uint8_t>(e >= ptotal ? 100 : (e * 100 / ptotal));
   if (pct != s_lastPct) { s_lastPct = pct; uiBridge::setBootProgress(pct); }
 
   if (e >= BOOT_TOTAL_MS) {

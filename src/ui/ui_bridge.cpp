@@ -111,7 +111,7 @@ void tick() {
   qy_ui_set_clock(s.timeSynced ? s.timeHHMM : "--:--");
   qy_ui_set_date(date);
   qy_ui_set_quote(sanitizeDynamic(s.quote[0] ? s.quote : SLOGAN_CN));
-  qy_ui_set_status(s_demo ? "DEMO" : (s.wifiOn ? "USB ON" : "USB OFF"), s.wifiOn);
+  qy_ui_set_status(s_demo ? "渑池高中" : (s.wifiOn ? "USB ON" : "USB OFF"), s.wifiOn);
 
   // PRIVATE channels - dropped by qy_ui while Guest/Boot is active.
   qy_dashboard_t d = {};

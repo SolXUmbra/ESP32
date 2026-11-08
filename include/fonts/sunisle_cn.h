@@ -6,7 +6,7 @@
 
 extern const lv_font_t sunisle_cn_14;  // 14 px, BODY/CAPTION + all dynamic text; whitelist source
 extern const lv_font_t sunisle_cn_16;  // 16 px, TITLE / card captions / buttons (static only, slimmed)
-extern const lv_font_t sunisle_cn_28;  // 28 px, brand + GUEST 2.1 oversized welcome heading, Kai 28 px
+extern const lv_font_t sunisle_cn_28;  // 28 px, brand + GUEST oversized welcome heading, Kai 28 px
 extern const lv_font_t sunisle_cn_kai_16;  // 16 px, HEADING / greeting (Kai 16 px)
 extern const lv_font_t sunisle_num_34;  // 34 px, NUM_XL clock / task count, proportional Light digits
-extern const lv_font_t sunisle_num_56;  // 56 px, GUEST 2.1 hero clock, 56 px proportional Light digits
+extern const lv_font_t sunisle_num_56;  // 56 px, GUEST hero clock, 56 px proportional Light digits

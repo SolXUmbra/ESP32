@@ -28,7 +28,7 @@
 ```
 [display] READY ST7789 320x240 HSPI 20MHz swap=1 buf=7680B
 [touch] HELD OFF at boot - no GPIO touched (panel stays safe)
-[ui] UI 2.0 BOOT (1500 ms); lock state mirrors the Windows session
+[ui] UI 2.0 BOOT (4000 ms); lock state mirrors the Windows session
 [net] Wi-Fi up: ssid=HOME ip=192.168.0.126 rssi=-50 dBm
 [time] SYNCED epoch=1794105343
 [weather] LIVE temp=11 C wmo=2 -> 多云

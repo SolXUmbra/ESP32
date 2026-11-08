@@ -47,11 +47,14 @@ constexpr uint16_t LVGL_BUF_LINES = 12;         // 320*12 px partial buffer (lan
 constexpr uint32_t LVGL_LOOP_MS      = 5;
 constexpr uint32_t UI_TICK_MS        = 1000;
 constexpr uint32_t HEARTBEAT_MS      = 10000;
-// UI 2.0 §6.3 / decision D2: BOOT is a 1.5 s transient splash. The 200 ms
-// fade is part of that window, not added on top of it.
-constexpr uint32_t BOOT_FADE_MS      = 200;
-constexpr uint32_t BOOT_HOLD_MS      = 1500;
-constexpr uint32_t BOOT_TOTAL_MS     = 1500;
+// UI 2.0 §6.3 / decision D2: BOOT is a transient splash. Per user direction
+// it now runs a full 4 s: fade IN (veil 255->0), hold, fade OUT (veil 0->255)
+// back to the rice-paper ground, then hands off to HOME. All three phases are
+// inside BOOT_TOTAL_MS, not added on top of it.
+constexpr uint32_t BOOT_FADE_MS      = 1200;   // fade in
+constexpr uint32_t BOOT_HOLD_MS      = 1600;   // hold at full visibility
+constexpr uint32_t BOOT_FADE_OUT_MS  = 1200;   // fade out
+constexpr uint32_t BOOT_TOTAL_MS     = 4000;   // 1200 + 1600 + 1200
 constexpr uint32_t SLIDESHOW_DEFAULT_MS = 5000;    // 5 秒随机轮换
 constexpr uint32_t SLIDESHOW_MIN_MS      = 3000;
 constexpr uint32_t SLIDESHOW_MAX_MS      = 300000;

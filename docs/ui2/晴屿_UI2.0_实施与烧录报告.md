@@ -166,3 +166,11 @@ BOOT 品牌行（2026-11-08 晚补）：`TOP_MID y=120`、14 px Montserrat、字
 - 串口 `esp32_boot_log_cn23.txt`：SD 3 张 JPEG、backlight、ST7789 320×240 20 MHz、touch HELD OFF、BOOT 1500 ms → **GUEST**、Wi-Fi `HOME` 192.168.0.126、NTP `SYNCED`、真实天气 11 ℃ 多云、HELP/heap 199,640 B；**零 `glyph dsc. not found`、零 LVGL 报错**。
 - 回滚：`esp32_app0_backup_20261108_pre_cn23.bin`（本轮前 app0 原样回读）。
 - 未解决：触摸控制器仍未取到坐标（缺板子原理图/引脚），交互继续走串口等价命令 `PAGE=` / `ACT=` / `PRIVACY=`。
+
+### 11.4 开机画面与品牌字修订（2026-11-08 晚，用户指定）
+
+- 开机画面改**横排品牌锁**：32×32 canvas logo（朱砂日＋墨色三角岛＋青瓷海平线，贴合「晴屿」=晴+屿字义）`(62,66)`＋「晴屿」28 px 楷 `(106,67)`＋`SUNISLE` 14 px 字距 5 朱砂 `(172,82)`。
+- 副标由「AI 桌面工作伴侣」改「**渑池高中AI桌面助理**」（14 px 淡墨，`TOP_MID y=158`）；字库 `sunisle_cn_14` 新增「助」字（303→304 字形）。
+- 顶栏 `SUNISLE` 66,11 由淡墨改朱砂；demo 态右上角状态字由「DEMO」改「**渑池高中**」。
+- 启动改**淡入+淡出共 4 s**：`BOOT_FADE_MS=1200` / `BOOT_HOLD_MS=1600` / `BOOT_FADE_OUT_MS=1200` / `BOOT_TOTAL_MS=4000`；veil 三段 `255→0 →0 →255`（淡出到宣纸色，与 HOME 底色无缝交接）。
+- 编译 1,247,821 B / 95.2%（余 62,899 B），RAM 99,764 B / 30.4%；烧录 `Hash of data verified`；冷启动 `BOOT (4000 ms) → HOME`，**零 `glyph dsc. not found`、零 LVGL 报错**。

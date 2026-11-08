@@ -182,21 +182,42 @@ static void pager(lv_obj_t *p, int active) {
 }
 
 // ---- 01 BOOT --------------------------------------------------------------
+// Brand logo (32x32) drawn once onto a canvas: a cinnabar sun over an ink
+// islet on a celadon sea line. "晴屿" = 晴 (sun) + 屿 (islet), so the mark
+// matches the word, not an arbitrary glyph.
+static lv_color_t s_logo_buf[32 * 32];
+static lv_obj_t *boot_logo(lv_obj_t *p, int x, int y) {
+    lv_obj_t *cv = lv_canvas_create(p);
+    lv_canvas_set_buffer(cv, s_logo_buf, 32, 32, LV_IMG_CF_TRUE_COLOR);
+    lv_canvas_fill_bg(cv, col(C_BG), LV_OPA_COVER);   // page-colour = invisible bg
+    lv_draw_rect_dsc_t d;
+    lv_draw_rect_dsc_init(&d);
+    // sun (cinnabar, upper right)
+    d.bg_color = col(C_BRAND); d.bg_opa = LV_OPA_COVER; d.radius = LV_RADIUS_CIRCLE;
+    lv_canvas_draw_rect(cv, 17, 1, 14, 14, &d);
+    // sea line (celadon)
+    d.radius = 0;
+    d.bg_color = col(C_TECH);
+    lv_canvas_draw_rect(cv, 3, 28, 26, 2, &d);
+    // islet (ink triangle sitting on the sea line)
+    d.bg_color = col(C_INK);
+    static lv_point_t tri[3] = {{16, 12}, {6, 28}, {26, 28}};
+    lv_canvas_draw_polygon(cv, tri, 3, &d);
+    lv_obj_set_pos(cv, x, y);
+    return cv;
+}
+
 static void build_boot(void) {
     s_boot = lv_obj_create(s_root);
     style_page(s_boot, C_BG);
-    // Spec A, literally: centred brand, the tagline below it, one vermilion
-    // hairline / minimal animated indicator, ~1.5 s. No logo wordmark, no
-    // version string, no extra status copy. Rice-paper + ink, generous air.
-    lv_obj_t *brand = lbl(s_boot, "晴屿", C_INK, &sunisle_cn_28, 0, 82);
-    lv_obj_align(brand, LV_ALIGN_TOP_MID, 0, 82);
-    // Cinnabar wordmark directly under the Chinese brand: same romanisation,
-    // same colour as the top bar, so boot and every page read as one brand.
-    lv_obj_t *roman = lat(s_boot, "SUNISLE", C_BRAND, 0, 120, 5,
-                          &lv_font_montserrat_14);
-    lv_obj_align(roman, LV_ALIGN_TOP_MID, 0, 120);
+    // Horizontal brand lock-up: logo + 晴屿 + SUNISLE, optically centred on
+    // the 320-wide panel. One cinnabar hairline + the linear progress sweep
+    // stay; only the tagline copy and the new logo changed.
+    boot_logo(s_boot, 62, 66);                                   // 32x32 mark
+    lbl(s_boot, "晴屿", C_INK, &sunisle_cn_28, 106, 67);        // Chinese, ink
+    lat(s_boot, "SUNISLE", C_BRAND, 172, 82, 5, &lv_font_montserrat_14);  // Latin, cinnabar
     rect(s_boot, 136, 138, 48, 2, C_BRAND);
-    lv_obj_t *sub = cn14(s_boot, "AI 桌面工作伴侣", C_MUTED, 0, 158);
+    lv_obj_t *sub = cn14(s_boot, "渑池高中AI桌面助理", C_MUTED, 0, 158);
     lv_obj_align(sub, LV_ALIGN_TOP_MID, 0, 158);
     rect(s_boot, 100, 206, 120, 2, C_LINE);
     s_boot_fill = rect(s_boot, 100, 206, 1, 2, C_BRAND);
