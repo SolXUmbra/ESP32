@@ -45,6 +45,7 @@ void setMap(uint8_t m);             // 0..3 rotation mapping, default 1
 void setMode(bool hardwareSpi);     // true = HW SPI (default), false = bit-bang
 void rawDump(uint32_t idle_ms, uint32_t press_ms);  // untouched vs pressed ADC
 void logDump(uint32_t ms);          // per-sample z/x/y log (free-form press test)
+void debugFor(uint32_t ms);         // non-blocking tick trace (main-loop view)
 void calRun(uint32_t per_spot_ms);  // 4-corner calibration, saved to NVS
 void setCal(int32_t x0, int32_t x1, int32_t y0, int32_t y1, bool swap);
 void setBus(int8_t clk, int8_t mosi, int8_t miso);          // reconfigure SPI bus

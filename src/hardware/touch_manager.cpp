@@ -73,16 +73,26 @@ int8_t   s_csPin     = TOUCH_CS_DEFAULT;  // active CS, reconfigurable
 uint8_t  s_map       = 1;           // rotation 1 -> logical 320x240
 uint32_t s_lastPoll  = 0;
 
-// Transfer path. HARDWARE SPI (VSPI) is the default: the upstream CYD2USB
-// driver talks to the XPT2046 this way (SPIClass bus, sck=25 miso=39 mosi=32
-// cs=33). Bit-bang stays available as a bring-up fallback.
-bool      s_useHw = true;
+// Transfer path. BIT-BANG IS THE DEFAULT and this is not a preference:
+// the XPT2046 sits on its own pins (25/32/39) but ESP32 only exposes two
+// usable SPI peripherals, and BOTH are already taken - HSPI by the LCD
+// (LovyanGFX, 14/13/12) and VSPI by the SD card (18/19/23/5). Claiming VSPI
+// for touch works in isolation and then silently breaks as soon as storage
+// initialises: SD re-routes VSPI to its own pins, MISO 39 floats, every
+// channel reads 0xFFF and the driver latches "pressed forever".
+// Bit-bang touches no peripheral state, so nothing can steal it.
+// TOUCHMODE=hw stays available for isolated bring-up experiments only.
+bool      s_useHw = false;
 SPIClass* s_spi   = nullptr;
 
 bool     s_pressed   = false;
 uint32_t s_pressStart = 0;
 uint8_t  s_pressStreak  = 0, s_releaseStreak = 0;
 uint16_t s_rx = 0, s_ry = 0, s_rz = 0;
+
+// Non-blocking tick-level trace: proves whether the MAIN LOOP actually sees
+// pressure (logDump blocks the loop, so it cannot answer that question).
+uint32_t s_dbgUntil = 0, s_lastDbg = 0;
 
 // Configure the ACTIVE CS pin. The previous CS (if any) is released to INPUT
 // so it never drives the bus; the new one is an active-low OUTPUT left HIGH
@@ -225,6 +235,17 @@ bool sample(uint16_t* x, uint16_t* y, uint16_t* z) {
   const uint16_t yr = readChannel(CMD_Y);
   const uint16_t z1 = readChannel(CMD_Z1);
   const uint16_t z2 = readChannel(CMD_Z2);
+
+  // Floating-MISO guard. If the touch bus is dead (wrong pins, CS stolen, or a
+  // peripheral re-routed the bus) DOUT idles high and every channel returns
+  // 0x0FFF. Without this test that reads as maximum pressure, so the driver
+  // latches pen-down and no tap can ever complete - which looks exactly like
+  // "touch does nothing".
+  if (xr == 0x0FFF && yr == 0x0FFF) {
+    *x = *y = *z = 0;
+    return false;
+  }
+
   // Canonical XPT2046 pressure: Z1 + 4095 - Z2, with the upstream clamp that
   // treats an overflow as "no pressure" (0).
   int32_t zv = static_cast<int32_t>(z1) + 4095 - static_cast<int32_t>(z2);
@@ -352,7 +373,8 @@ const char* reason() {
   static char buf[96];
   if (!s_enabled) return "disabled (enable with TOUCH=on or autoDetect)";
   snprintf(buf, sizeof(buf),
-           "XPT2046 hw-SPI (clk=%d mosi=%d miso=%d cs=%d), z-threshold detect",
+           "XPT2046 %s (clk=%d mosi=%d miso=%d cs=%d), z-threshold detect",
+           s_useHw ? "hw-SPI" : "bit-bang",
            static_cast<int>(s_clk), static_cast<int>(s_mosi),
            static_cast<int>(s_miso), static_cast<int>(s_csPin));
   return buf;
@@ -380,13 +402,27 @@ void setMap(uint8_t m) {
 void setMode(bool hw) {
   s_useHw = hw;
   if (s_spi) { s_spi->end(); }
+  // Drop any in-flight press state: switching transport always re-reads the
+  // bus, so a latched "down" from the old mode must not leak a fake long tap.
+  s_pressed = false;
+  s_lastPoll = 0;
   hwInit();
   Serial.printf("[touch] transfer mode = %s\n",
-                hw ? "hardware SPI (VSPI, sck=25 miso=39 mosi=32)" : "bit-bang");
+                hw ? "hardware SPI (VSPI, sck=25 miso=39 mosi=32) - CONFLICTS with SD"
+                   : "bit-bang");
 }
 
 void rawDump(uint32_t idle_ms, uint32_t press_ms) { rawDumpImpl(idle_ms, press_ms); }
 void logDump(uint32_t ms) { logDumpImpl(ms); }
+
+// Non-blocking: the main loop keeps running, so taps still fire while this
+// trace is on. Every 200 ms it prints the z the tick path actually sampled.
+void debugFor(uint32_t ms) {
+  s_dbgUntil = millis() + ms;
+  s_lastDbg  = 0;
+  Serial.printf("[touchdbg] on for %lu ms (main-loop sampling)\n",
+                static_cast<unsigned long>(ms));
+}
 void calRun(uint32_t per_spot_ms) { calRunImpl(per_spot_ms); }
 
 // Inject a calibration measured elsewhere (e.g. from four verified corner taps)
@@ -672,6 +708,14 @@ void tick(uint32_t now_ms, TapCallback cb) {
   // legitimately reads random raw X/Y, only Z tells us whether a finger is on it.
   uint16_t x, y, z;
   if (!sample(&x, &y, &z)) return;
+
+  if (s_dbgUntil && static_cast<int32_t>(s_dbgUntil - now_ms) > 0 &&
+      now_ms - s_lastDbg >= 200) {
+    s_lastDbg = now_ms;
+    Serial.printf("[touchdbg] z=%4u down=%d x=%4u y=%4u\n", z,
+                  s_pressed ? 1 : 0, x, y);
+  }
+
   const bool down = s_pressed ? (z > Z_RELEASE) : (z > Z_PRESS);
   if (down) {
     s_rx = x; s_ry = y; s_rz = z;          // latest raw sample

@@ -327,6 +327,12 @@ void handleCommand(const String& raw) {
     uint32_t ms = static_cast<uint32_t>(c.substring(9).toInt());
     if (ms > 60000UL) ms = 60000UL;
     touch::logDump(ms);
+  } else if (c == "TOUCHDBG") {
+    touch::debugFor(15000);
+  } else if (c.startsWith("TOUCHDBG=")) {
+    uint32_t ms = static_cast<uint32_t>(c.substring(9).toInt());
+    if (ms > 60000UL) ms = 60000UL;
+    touch::debugFor(ms);
   } else if (c == "TOUCHCAL") {
     touch::calRun(10000);
   } else if (c.startsWith("TOUCHCAL=")) {
