@@ -53,14 +53,19 @@ void tickFrame() {
   if (e >= BOOT_TOTAL_MS) {
     lv_obj_del(s_veil);
     s_veil = nullptr;
-    // Task book: BOOT -> Guest. USB reconnect / reboot must never auto-Owner.
-    uiBridge::setPrivacy(false, false);
+    // Task book: power-on default is GUEST. BUT if the user already unlocked
+    // (BOOT long-press or PRIVACY=owner) during the splash, respect that
+    // explicit session instead of forcing GUEST on top of it.
+    if (!uiBridge::owner()) {
+      uiBridge::setPrivacy(false, false);
+    }
     setState(SystemState::HOME_READY);
-    s_page = Page::GUEST;
+    s_page = uiBridge::owner() ? Page::HOME : Page::GUEST;
     setPage(s_page);
     uiBridge::tick();
     lv_obj_invalidate(lv_scr_act());
-    SUN_LOG("ui", "BOOT done -> GUEST (default, no private text cached)");
+    SUN_LOG("ui", "BOOT done -> %s",
+            uiBridge::owner() ? "HOME (unlocked during boot)" : "GUEST (default)");
   }
 }
 

@@ -391,22 +391,25 @@ void qy_ui_show_page(qy_page_t page) {
     }
     if (s_cb.on_page_changed) s_cb.on_page_changed(page, s_cb.user_data);
 }
-void qy_ui_next_page(void) {
-    if (!s_private_visible) return;
-    qy_ui_show_page((qy_page_t)((s_page + 1) % QY_PAGE_COUNT));
+qy_page_t qy_ui_next_page(void) {
+    if (!s_private_visible) return s_page;
+    s_page = (qy_page_t)((s_page + 1) % QY_PAGE_COUNT);
+    qy_ui_show_page(s_page);
+    return s_page;
 }
 
 // ---- public channels -----------------------------------------------------
 void qy_ui_set_clock(const char *hhmm) {
     set_label(s_home_clock, hhmm);
     set_label(s_guest_clock, hhmm);
-    // Centred labels change width when the digits change; re-anchor.
-    if (s_guest_clock) lv_obj_align(s_guest_clock, LV_ALIGN_TOP_MID, 0, 56);
+    // Centred labels change width when the digits change; re-anchor to the
+    // SAME y the build placed them (68) so the hero never drifts on a tick.
+    if (s_guest_clock) lv_obj_align(s_guest_clock, LV_ALIGN_TOP_MID, 0, 68);
 }
 void qy_ui_set_date(const char *date_cn) {
     set_label(s_home_date, date_cn);
     set_label(s_guest_date, date_cn);
-    if (s_guest_date) lv_obj_align(s_guest_date, LV_ALIGN_TOP_MID, 0, 106);
+    if (s_guest_date) lv_obj_align(s_guest_date, LV_ALIGN_TOP_MID, 0, 116);
 }
 void qy_ui_set_quote(const char *text) { set_label(s_guest_quote, text); }
 void qy_ui_set_status(const char *text, bool online) {

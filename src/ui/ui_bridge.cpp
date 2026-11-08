@@ -184,7 +184,8 @@ void nextPage() {
     SUN_LOG("bridge", "NEXT blocked: GUEST is active");
     return;
   }
-  qy_ui_next_page();
+  const qy_page_t np = qy_ui_next_page();
+  setPage(static_cast<Page>(np));   // keep the state snapshot's page in sync
 }
 void action(uint8_t a) {
   if (!owner()) { SUN_LOG("bridge", "ACT blocked: GUEST is active"); return; }

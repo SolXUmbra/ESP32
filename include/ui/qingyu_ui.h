@@ -73,7 +73,7 @@ qy_privacy_t qy_ui_get_privacy(void);
 bool qy_ui_private_visible(void);
 
 void qy_ui_show_page(qy_page_t page);
-void qy_ui_next_page(void);
+qy_page_t qy_ui_next_page(void);
 
 /* BOOT progress bar: one linear sweep over BOOT_TOTAL_MS. */
 void qy_ui_set_boot_progress(uint8_t pct);
