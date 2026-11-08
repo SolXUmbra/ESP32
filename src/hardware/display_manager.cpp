@@ -5,16 +5,26 @@
 #include "utils/logger.h"
 
 #include <LovyanGFX.hpp>
+#include <lgfx/v1/touch/Touch_XPT2046.hpp>
 
 namespace sunisle {
 namespace display {
 namespace {
+
+// Touch CS / PENIRQ for the XPT2046 which rides the panel's HSPI bus
+// (bus_shared=true). These are the values the original A-solution firmware
+// used; the whole bring-up below is to VERIFY whether the controller is
+// actually present at these pins.
+constexpr int8_t kTouchCs  = 33;
+constexpr int8_t kTouchIrq = 36;
 
 // Only ONE panel driver is compiled in. The audited project needed four for
 // its diagnostic scanner; SUNISLE uses the visually VERIFIED ST7789 profile.
 class SunisleLGFX : public lgfx::LGFX_Device {
   lgfx::Bus_SPI      _bus;
   lgfx::Panel_ST7789 _panel;
+  lgfx::Touch_XPT2046 _touch;   // rides the panel's HSPI bus (bus_shared)
+  lgfx::Touch_XPT2046::config_t _tc{};
 
  public:
   SunisleLGFX() {
@@ -45,6 +55,38 @@ class SunisleLGFX : public lgfx::LGFX_Device {
     pc.rgb_order    = LCD_RGB_ORDER;
     _panel.config(pc);
     setPanel(&_panel);
+
+    // XPT2046 rides the SAME HSPI bus as the panel (bus_shared). Only the CS
+    // and PENIRQ pins differ from the LCD. This mirrors the A-solution config.
+    _tc.spi_host   = HSPI_HOST;
+    _tc.pin_mosi   = LCD_MOSI;   // 13
+    _tc.pin_miso   = LCD_MISO;   // 12
+    _tc.pin_cs     = kTouchCs;   // 33
+    _tc.pin_int    = kTouchIrq;  // 36 (override at runtime to test 26 / -1)
+    _tc.bus_shared = true;
+    _tc.x_min = 300; _tc.x_max = 3900;
+    _tc.y_min = 400; _tc.y_max = 3900;
+    _tc.offset_rotation = 0;
+    _touch.config(_tc);
+    _panel.setTouch(&_touch);
+  }
+
+  // Re-init the XPT2046 with optional CS / INT pin overrides (e.g. -1 polled,
+  // 26 = the pin that actually toggles on press; cs = a non-33 candidate).
+  bool initTouch(int8_t csPin = -2, int8_t intPin = -2) {
+    if (csPin != -2) _tc.pin_cs = csPin;
+    if (intPin != -2) _tc.pin_int = intPin;
+    _touch.config(_tc);
+    return _touch.init();
+  }
+  int8_t intPin() const { return _tc.pin_int; }
+  int8_t csPin() const { return _tc.pin_cs; }
+  bool rawTouch(uint16_t* x, uint16_t* y) {
+    lgfx::touch_point_t tp;
+    if (_touch.getTouchRaw(&tp, 1) == 0) return false;
+    *x = static_cast<uint16_t>(tp.x);
+    *y = static_cast<uint16_t>(tp.y);
+    return true;
   }
 };
 
@@ -136,6 +178,22 @@ void drawRawDiagnostic() {
 void setBrightness(uint8_t v) { backlight::set(v); }
 bool isReady() { return s_ready; }
 uint32_t flushCount() { return s_flushCount; }
+
+// Bring-up: init the shared-bus XPT2046 and read raw coordinates. No LVGL
+// indev is registered, so this cannot cause the white-screen regression.
+bool touchInit(int8_t csPin, int8_t intPin) {
+  return (s_gfx && s_ready) ? s_gfx->initTouch(csPin, intPin) : false;
+}
+int8_t touchIntPin() { return s_gfx ? s_gfx->intPin() : static_cast<int8_t>(-2); }
+int8_t touchCsPin() { return s_gfx ? s_gfx->csPin() : static_cast<int8_t>(-2); }
+int touchRead(uint16_t* x, uint16_t* y) {
+  if (!s_gfx || !s_ready) return 0;
+  return s_gfx->getTouch(x, y) ? 1 : 0;
+}
+int touchRaw(uint16_t* x, uint16_t* y) {
+  if (!s_gfx || !s_ready) return 0;
+  return s_gfx->rawTouch(x, y) ? 1 : 0;
+}
 
 void pushRect(int32_t x, int32_t y, int32_t w, int32_t h, const uint16_t* px) {
   if (!s_ready || !s_gfx) return;

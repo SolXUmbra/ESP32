@@ -42,11 +42,21 @@ void setEnabled(bool on);
 bool enabled();
 void setCs(int8_t cs);              // override CS (default 33 = CYD)
 void setMap(uint8_t m);             // 0..3 rotation mapping, default 1
+void setMode(bool hardwareSpi);     // true = HW SPI (default), false = bit-bang
+void rawDump(uint32_t idle_ms, uint32_t press_ms);  // untouched vs pressed ADC
+void logDump(uint32_t ms);          // per-sample z/x/y log (free-form press test)
+void calRun(uint32_t per_spot_ms);  // 4-corner calibration, saved to NVS
+void setCal(int32_t x0, int32_t x1, int32_t y0, int32_t y1, bool swap);
+void setBus(int8_t clk, int8_t mosi, int8_t miso);          // reconfigure SPI bus
+void setPins(int8_t clk, int8_t mosi, int8_t miso,
+             int8_t cs, int8_t irq);                        // full reconfigure
+void gpioScan(uint32_t window_ms);  // find PENIRQ / any pin that toggles on press
 void autoDetect();                  // init bus + enable if controller present
 
 void probe(int8_t cs = -1);         // read a few samples on the touch bus
 void scan(uint32_t duration_ms);    // continuous raw dump (for press tests)
 void i2cProbe();                    // rule out I2C capacitive touch panels
+void i2cFind(int8_t sda, int8_t scl);   // targeted scan of one SDA/SCL pair
 void spiProbe(int8_t cs, uint32_t window_ms);  // alias: scan on given CS
 void misoProbe(int8_t cs);          // NOTE: bus is fixed - prints guidance
 void matrixProbe();                 // NOTE: bus is fixed - prints guidance

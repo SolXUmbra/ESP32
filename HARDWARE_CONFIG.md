@@ -79,26 +79,30 @@
 ⚠️ **SD 卡是用户自己的数据载体**：本工程只在 `/SUNISLE/` 命名空间下**新增**文件与目录，
 不删除、不覆盖任何已有文件。照片清理必须满足任务书的四重条件，且默认软删除。
 
-## 5. 触摸（XPT2046，已确认可用，软件 bit-bang 驱动）
+## 5. 触摸（XPT2046，实测可用，硬件 SPI + 压力判定）
 
 | 项 | 值 |
 | --- | --- |
-| 控制器 | **XPT2046**（电阻屏）。实机 `TOUCHPROBE` 在 CS=33 返回 STABLE 响应，已确认 |
-| 独立总线 | `clk=GPIO25, mosi(DIN)=GPIO32, miso(DOUT)=GPIO39, cs=GPIO33, irq(PENIRQ)=GPIO36` |
-| 与 LCD/SD 关系 | **独立总线**，不与 LCD 的 HSPI(14/13/12) 或 SD 的 VSPI(18/23/19) 共享 |
-| 驱动方式 | **软件 bit-bang SPI**：不占用 HSPI/VSPI 硬件外设，**不注册 LVGL indev** |
-| 白屏风险 | **无** — bit-bang 仅操作独立总线引脚；实机验证显示稳定、无白屏、heap 稳定 |
-| CS 可配置 | 默认 33；`TOUCHCS=<pin>` 可改；`probe()` 会**真正选中**各候选 CS 以定位控制器 |
-| 使能状态 | **开机 `autoDetect()` 即启用**，轮询上报 tap（raw→320×240 坐标 + 压力 + 时长） |
-| 隐私护栏 | GUEST 忽略一切 tap（触摸永不进入 OWNER）；仅 **BOOT 实体按钮** 长按可解锁 |
-| 坐标映射 | `mapRaw()` 按 rotation 1（逻辑 320×240）旋转；`TOUCHMAP=0..3` 可校准 |
-| 调试命令 | `TOUCH` / `TOUCH=on|off` / `TOUCHPROBE[=pin]` / `TOUCHSCAN[=ms]` / `TOUCHCS=<pin>` / `TOUCHMAP=0..3` / `I2CPROBE` |
+| 板型 | **ESP32-2432S028R「CYD2USB」双 USB 版**（micro-USB + USB-C，ST7789 面板），背面丝印 `ESP32-2432S028` |
+| 控制器 | **XPT2046**（电阻屏）。实机原始读数为典型 XPT2046 特征：空闲 `z≈3..12`、按住 `z≈1200..1800` |
+| 独立总线 | `clk=GPIO25, mosi(DIN)=GPIO32, miso(DOUT)=GPIO39, cs=GPIO33`（与 LCD HSPI 14/13/12、SD VSPI 18/23/19 均不共享） |
+| 传输方式 | **硬件 SPI**：`SPIClass(VSPI)` 驱动上述引脚，1 MHz，SPI_MODE0；bit-bang 仅作 `TOUCHMODE=bb` 调试备选 |
+| 按下判定 | **不用 PENIRQ**（GPIO36 在本版不可信）。`z = Z1 + 4095 - Z2`，`z>400` 判按下、`z<250` 判抬起（迟滞） |
+| 通道命令 | X=`0x90`、Y=`0xD0`、Z1=`0xB0`、Z2=`0xC0`（+`0x01` 保持基准）。**命令错位或 Z 公式写错会让全部读数看起来像悬浮噪声** |
+| 坐标标定 | 四点标定存 NVS（`qytouch`/`cal`）；实测值 `x 235..3633`、`y 445..3663`，无轴互换。`TOUCHCAL` 重标、`TOUCHSETCAL=x0,x1,y0,y1[,swap]` 注入 |
+| 与 LVGL 关系 | **不注册 LVGL indev**，仅通过回调上报 tap（避免 `B方案_白屏二分记录.md` 中的白屏路径） |
+| 其它风险 | 空闲时原始 X/Y 本就随机（未压下的电阻屏特性），**只有 Z 有意义**，不可用 X/Y 窗口判按下 |
+| 调试命令 | `TOUCH` / `TOUCH=on|off` / `TOUCHMODE=hw|bb` / `TOUCHRAW[=idleMs,pressMs]` / `TOUCHLOG[=ms]` / `TOUCHCAL[=perSpotMs]` / `TOUCHSETCAL=...` / `TOUCHSCAN[=ms]` / `TOUCHPINS=clk,mosi,miso,cs,irq` |
 
-> **历史误区已纠正（2026-11-08 晚）**：早期多轮探测复用 LCD 总线且只切 CS，且 `readChannel`
-> 曾把 CS **写死为 33**，使 `probe()`/ `TOUCHCS=` 从未真正改变 CS 脚，造成「读不到触摸」的误判。
-> 正确做法是在**独立总线（25/32/39/33/36）** 上用软件 bit-bang 读 XPT2046，控制器即在 CS=33
-> 稳定响应。触摸导航现已可用：HOME 点击翻到 MEMOS，MEMOS 上「确认 / 稍后 / 查看详情」有独立命中区；
-> BOOT 按钮短按 = 下一页（OWNER），长按 = 锁/解锁。详见 `晴屿_触摸硬件诊断报告.md` 补记。
+> **误判史与真相（2026-11-08 定案）**：先后判过「触摸禁用」「触摸已确认」「板上无触摸通路」，
+> 全错。真实原因有两个，且都在驱动里：
+> 1. `readChannel` 曾把 CS 写死 33，`probe()`/`TOUCHCS=` 从未真正切 CS；
+> 2. **X/Y 通道命令写反（用了 0xD1/0x91）、压力公式用错**，于是每次读到的真实 ADC 值都被当成噪声，
+>    再叠加「靠坐标窗口判按下」，表现为「怎么按都没反应」。
+>
+> 按上游 CYD2USB 语义改正（X=0x90 / Y=0xD0 / Z=Z1+4095-Z2 / 不用 IRQ）后，同一块板、同一组引脚
+> 立刻读到干净数据：空闲 `z=7`、按住 `z=1245`，四点按压原始值 `(298,469)(3632,422)(172,3679)(3634,3647)`。
+> **后续任何「触摸无反应」先看 `TOUCHLOG` 的 z 值，不要再怀疑硬件或引脚。**
 
 ## 6. 分区表（沿用原厂，不擅自修改）
 

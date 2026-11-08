@@ -135,8 +135,11 @@ void handleCommand(const String& raw) {
     Serial.println(F("NAV: BOOT btn short=NEXT, long(2s)=lock/unlock; touch HOME->MEMOS"));
     Serial.println(F("GUEST long-press BOOT to unlock (touch cannot enter Owner)"));
     Serial.println(F("TOUCH | TOUCH=on|off | TOUCHPROBE[=pin] | TOUCHSCAN[=ms]"));
-    Serial.println(F("TOUCHCS=<pin> | TOUCHMAP=0..3 | I2CPROBE  (CYD bus clk25 mo32 mi39 cs33)"));
-    Serial.println(F("TOUCHSPI[=<cs>,<ms>] | TOUCHIRQ[=<ms>]  (miso/matrix obsolete, fixed bus)"));
+    Serial.println(F("TOUCHCS=<pin> | TOUCHMAP=0..3 | I2CPROBE | I2CFIND=sda,scl"));
+    Serial.println(F("TOUCHSPI[=<cs>,<ms>] | TOUCHIRQ[=<ms>]"));
+    Serial.println(F("BRING-UP: GPIOSCAN[=ms] finds PENIRQ; TOUCHBUS=clk,mosi,miso;"));
+    Serial.println(F("          TOUCHPINS=clk,mosi,miso,cs,irq; TOUCHMODE=hw|bb"));
+    Serial.println(F("          TOUCHRAW[=idleMs,pressMs] untouched-vs-pressed ADC"));
   } else if (c == "WX") {
     weatherService::dump();
   } else if (c == "STATE") {
@@ -241,6 +244,17 @@ void handleCommand(const String& raw) {
     touch::scan(ms);
   } else if (c == "I2CPROBE") {
     touch::i2cProbe();
+  } else if (c.startsWith("I2CFIND=")) {
+    // I2CFIND=sda,scl  (targeted capacitive-controller scan on one pair)
+    const String a = c.substring(8);
+    const int comma = a.indexOf(',');
+    if (comma < 0) {
+      Serial.println(F("[cmd] I2CFIND=sda,scl"));
+      return;
+    }
+    const int8_t sda = static_cast<int8_t>(a.substring(0, comma).toInt());
+    const int8_t scl = static_cast<int8_t>(a.substring(comma + 1).toInt());
+    touch::i2cFind(sda, scl);
   } else if (c == "TOUCHSPI") {
     touch::spiProbe(-1, 0);
   } else if (c.startsWith("TOUCHSPI=")) {
@@ -265,6 +279,122 @@ void handleCommand(const String& raw) {
     uint32_t ms = static_cast<uint32_t>(c.substring(9).toInt());
     if (ms > 30000UL) ms = 30000UL;
     touch::irqWatch(ms);
+  } else if (c.startsWith("TOUCHBUS=")) {
+    // TOUCHBUS=clk,mosi,miso  (reconfigure the SPI trio at runtime)
+    const String a = c.substring(9);
+    const int c1 = a.indexOf(','), c2 = a.indexOf(',', c1 + 1);
+    if (c1 < 0 || c2 < 0) {
+      Serial.println(F("[cmd] TOUCHBUS=clk,mosi,miso"));
+      return;
+    }
+    const int8_t clk  = static_cast<int8_t>(a.substring(0, c1).toInt());
+    const int8_t mosi = static_cast<int8_t>(a.substring(c1 + 1, c2).toInt());
+    const int8_t miso = static_cast<int8_t>(a.substring(c2 + 1).toInt());
+    touch::setBus(clk, mosi, miso);
+  } else if (c.startsWith("TOUCHPINS=")) {
+    // TOUCHPINS=clk,mosi,miso,cs,irq  (full reconfigure at runtime)
+    const String a = c.substring(10);
+    int idx[4]; idx[0] = a.indexOf(',');
+    for (int i = 1; i < 4; ++i) idx[i] = a.indexOf(',', idx[i - 1] + 1);
+    if (idx[3] < 0) {
+      Serial.println(F("[cmd] TOUCHPINS=clk,mosi,miso,cs,irq"));
+      return;
+    }
+    const int8_t clk  = static_cast<int8_t>(a.substring(0, idx[0]).toInt());
+    const int8_t mosi = static_cast<int8_t>(a.substring(idx[0] + 1, idx[1]).toInt());
+    const int8_t miso = static_cast<int8_t>(a.substring(idx[1] + 1, idx[2]).toInt());
+    const int8_t cs   = static_cast<int8_t>(a.substring(idx[2] + 1, idx[3]).toInt());
+    const int8_t irq  = static_cast<int8_t>(a.substring(idx[3] + 1).toInt());
+    touch::setPins(clk, mosi, miso, cs, irq);
+  } else if (c.startsWith("TOUCHMODE=")) {
+    // TOUCHMODE=hw|bb  (hardware VSPI transfer vs software bit-bang)
+    const String a = c.substring(10);
+    touch::setMode(!(a == "bb" || a == "BB" || a == "bitbang"));
+  } else if (c == "TOUCHRAW") {
+    touch::rawDump(4000, 10000);
+  } else if (c.startsWith("TOUCHRAW=")) {
+    const String a = c.substring(9);
+    const int comma = a.indexOf(',');
+    uint32_t idleMs  = static_cast<uint32_t>(a.substring(0, comma < 0 ? a.length() : comma).toInt());
+    uint32_t pressMs = (comma < 0) ? 8000UL
+                                   : static_cast<uint32_t>(a.substring(comma + 1).toInt());
+    if (idleMs > 15000UL) idleMs = 15000UL;
+    if (pressMs > 30000UL) pressMs = 30000UL;
+    touch::rawDump(idleMs, pressMs);
+  } else if (c == "TOUCHLOG") {
+    touch::logDump(20000);
+  } else if (c.startsWith("TOUCHLOG=")) {
+    uint32_t ms = static_cast<uint32_t>(c.substring(9).toInt());
+    if (ms > 60000UL) ms = 60000UL;
+    touch::logDump(ms);
+  } else if (c == "TOUCHCAL") {
+    touch::calRun(10000);
+  } else if (c.startsWith("TOUCHCAL=")) {
+    uint32_t per = static_cast<uint32_t>(c.substring(9).toInt());
+    if (per < 3000UL) per = 3000UL;
+    if (per > 20000UL) per = 20000UL;
+    touch::calRun(per);
+  } else if (c.startsWith("TOUCHSETCAL=")) {
+    // TOUCHSETCAL=x0,x1,y0,y1[,swap]
+    const String a = c.substring(12);
+    int idx[4]; idx[0] = a.indexOf(',');
+    for (int i = 1; i < 4; ++i) idx[i] = a.indexOf(',', idx[i - 1] + 1);
+    if (idx[3] < 0) {
+      Serial.println(F("[cmd] TOUCHSETCAL=x0,x1,y0,y1[,swap]"));
+      return;
+    }
+    const int32_t x0 = a.substring(0, idx[0]).toInt();
+    const int32_t x1 = a.substring(idx[0] + 1, idx[1]).toInt();
+    const int32_t y0 = a.substring(idx[1] + 1, idx[2]).toInt();
+    const int32_t y1 = a.substring(idx[2] + 1, idx[3]).toInt();
+    const String tail = a.substring(idx[3] + 1);
+    touch::setCal(x0, x1, y0, y1, tail.toInt() != 0);
+  } else if (c == "GPIOSCAN") {
+    touch::gpioScan(10000);
+  } else if (c.startsWith("GPIOSCAN=")) {
+    uint32_t ms = static_cast<uint32_t>(c.substring(9).toInt());
+    if (ms > 30000UL) ms = 30000UL;
+    touch::gpioScan(ms);
+  } else if (c == "LGFXTOUCH" || c.startsWith("LGFXTOUCH=")) {
+    int8_t cs = -2, ip = -2;
+    if (c.startsWith("LGFXTOUCH=")) {
+      const String a = c.substring(10);
+      const int comma = a.indexOf(',');
+      if (comma < 0) {
+        cs = static_cast<int8_t>(a.toInt());
+      } else {
+        cs = static_cast<int8_t>(a.substring(0, comma).toInt());
+        ip = static_cast<int8_t>(a.substring(comma + 1).toInt());
+      }
+    }
+    const bool ok = display::touchInit(cs, ip);
+    Serial.printf("[lgfxtouch] init=%s cs=%d intPin=%d (shared HSPI)\n",
+                  ok ? "OK" : "FAILED",
+                  static_cast<int>(display::touchCsPin()),
+                  static_cast<int>(display::touchIntPin()));
+  } else if (c == "LGFXSCAN" || c.startsWith("LGFXSCAN=")) {
+    uint32_t ms = (c == "LGFXSCAN") ? 15000UL
+                                    : static_cast<uint32_t>(c.substring(9).toInt());
+    if (ms > 30000UL) ms = 30000UL;
+    Serial.printf("[lgfxscan] %lu ms - PRESS THE PANEL NOW\n",
+                  static_cast<unsigned long>(ms));
+    const uint32_t t0 = millis();
+    uint32_t hits = 0, lastPrint = 0;
+    uint16_t px = 0xFFFF, py = 0xFFFF;
+    while (millis() - t0 < ms) {
+      uint16_t rx = 0, ry = 0, gx = 0, gy = 0;
+      const bool rawOk = display::touchRaw(&rx, &ry);
+      const bool pressed = display::touchRead(&gx, &gy);
+      if (pressed) ++hits;
+      if (rawOk && (rx != px || ry != py || millis() - lastPrint > 500)) {
+        Serial.printf("[lgfxraw] t=%lu raw=%u,%u pressed=%d gx=%u gy=%u\n",
+                      static_cast<unsigned long>(millis() - t0), rx, ry,
+                      pressed ? 1 : 0, gx, gy);
+        px = rx; py = ry; lastPrint = millis();
+      }
+      delay(20);
+    }
+    Serial.printf("[lgfxscan] DONE hits=%lu\n", static_cast<unsigned long>(hits));
   } else if (c == "REBOOT") {
     Serial.println(F("[cmd] restarting..."));
     Serial.flush();
