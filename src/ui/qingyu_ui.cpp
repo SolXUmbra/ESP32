@@ -168,7 +168,7 @@ static void topbar(lv_obj_t *p, lv_obj_t **status_out, lv_obj_t **dot_out,
     // seal is the only Chinese ornament; the rest is a standard product bar.
     rect(p, 16, 10, 6, 6, C_BRAND, 1);           // 朱砂小印
     kai16(p, "晴屿", C_INK, 28, 7);
-    lat(p, "SUNISLE", C_MUTED, 66, 11, 3);
+    lat(p, "SUNISLE", C_BRAND, 66, 11, 3);   // cinnabar wordmark, not 淡墨
     // Status group is right-aligned as ONE unit: text ends at 296, dot at
     // 300. No overlap regardless of caption length (USB ON / 2 待处理).
     *status_out = cn14(p, "USB OFF", C_MUTED, 0, 9);
@@ -190,6 +190,11 @@ static void build_boot(void) {
     // version string, no extra status copy. Rice-paper + ink, generous air.
     lv_obj_t *brand = lbl(s_boot, "晴屿", C_INK, &sunisle_cn_28, 0, 82);
     lv_obj_align(brand, LV_ALIGN_TOP_MID, 0, 82);
+    // Cinnabar wordmark directly under the Chinese brand: same romanisation,
+    // same colour as the top bar, so boot and every page read as one brand.
+    lv_obj_t *roman = lat(s_boot, "SUNISLE", C_BRAND, 0, 120, 5,
+                          &lv_font_montserrat_14);
+    lv_obj_align(roman, LV_ALIGN_TOP_MID, 0, 120);
     rect(s_boot, 136, 138, 48, 2, C_BRAND);
     lv_obj_t *sub = cn14(s_boot, "AI 桌面工作伴侣", C_MUTED, 0, 158);
     lv_obj_align(sub, LV_ALIGN_TOP_MID, 0, 158);
@@ -295,7 +300,7 @@ static void build_guest(void) {
     // the screen content itself already says this is the guest view.
     rect(s_guest, 16, 10, 6, 6, C_BRAND, 1);
     kai16(s_guest, "晴屿", C_INK, 28, 7);
-    lat(s_guest, "SUNISLE", C_MUTED, 66, 11, 3);
+    lat(s_guest, "SUNISLE", C_BRAND, 66, 11, 3);   // cinnabar wordmark
     rect(s_guest, 16, 34, 288, 1, C_LINE);
 
     // (2) hero stack. No "现在时间" / "每日一言" / "访客模式" / "欢迎来访"
