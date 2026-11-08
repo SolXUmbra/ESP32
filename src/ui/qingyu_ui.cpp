@@ -96,9 +96,6 @@ static lv_obj_t *cn14(lv_obj_t *p, const char *t, uint32_t c, int x, int y,
 static lv_obj_t *cn16(lv_obj_t *p, const char *t, uint32_t c, int x, int y) {
     return lbl(p, t, c, &sunisle_cn_16, x, y);
 }
-static lv_obj_t *kai16(lv_obj_t *p, const char *t, uint32_t c, int x, int y) {
-    return lbl(p, t, c, &sunisle_cn_kai_16, x, y);
-}
 static lv_obj_t *lat(lv_obj_t *p, const char *t, uint32_t c, int x, int y,
                      uint8_t spacing = 0, const lv_font_t *font = &lv_font_montserrat_12) {
     lv_obj_t *o = lbl(p, t, c, font, x, y);
@@ -167,8 +164,8 @@ static void topbar(lv_obj_t *p, lv_obj_t **status_out, lv_obj_t **dot_out,
     // 8 px grid: 16 px margin, 36 px bar, hairline at y=34. A 6 px vermilion
     // seal is the only Chinese ornament; the rest is a standard product bar.
     rect(p, 16, 10, 6, 6, C_BRAND, 1);           // 朱砂小印
-    kai16(p, "晴屿", C_INK, 28, 7);
-    lat(p, "SUNISLE", C_BRAND, 66, 11, 3);   // cinnabar wordmark, not 淡墨
+    cn16(p, "晴屿", C_INK, 28, 7);
+    lat(p, "SUNISLE", C_BRAND, 66, 9, 3, &lv_font_montserrat_16);   // cinnabar wordmark, not 淡墨
     // Status group is right-aligned as ONE unit: text ends at 296, dot at
     // 300. No overlap regardless of caption length (USB ON / 2 待处理).
     *status_out = cn14(p, "USB OFF", C_MUTED, 0, 9);
@@ -212,10 +209,11 @@ static void build_boot(void) {
     style_page(s_boot, C_BG);
     // Horizontal brand lock-up: logo + 晴屿 + SUNISLE, optically centred on
     // the 320-wide panel. One cinnabar hairline + the linear progress sweep
-    // stay; only the tagline copy and the new logo changed.
+    // stay. Big-tech style: CN and Latin wordmark share ONE 16 px size (sans),
+    // baseline-aligned, with the 32 px mark as the only oversized element.
     boot_logo(s_boot, 62, 66);                                   // 32x32 mark
-    lbl(s_boot, "晴屿", C_INK, &sunisle_cn_28, 106, 67);        // Chinese, ink
-    lat(s_boot, "SUNISLE", C_BRAND, 172, 82, 5, &lv_font_montserrat_14);  // Latin, cinnabar
+    lbl(s_boot, "晴屿", C_INK, &sunisle_cn_16, 106, 74);        // Chinese, ink (16 px, same as Latin)
+    lat(s_boot, "SUNISLE", C_BRAND, 150, 74, 5, &lv_font_montserrat_16);  // Latin, cinnabar (16 px)
     rect(s_boot, 136, 138, 48, 2, C_BRAND);
     lv_obj_t *sub = cn14(s_boot, "渑池高中AI桌面助理", C_MUTED, 0, 158);
     lv_obj_align(sub, LV_ALIGN_TOP_MID, 0, 158);
@@ -320,8 +318,8 @@ static void build_guest(void) {
     // (1) product bar 0..36, identical rhythm to topbar(). No state badge:
     // the screen content itself already says this is the guest view.
     rect(s_guest, 16, 10, 6, 6, C_BRAND, 1);
-    kai16(s_guest, "晴屿", C_INK, 28, 7);
-    lat(s_guest, "SUNISLE", C_BRAND, 66, 11, 3);   // cinnabar wordmark
+    cn16(s_guest, "晴屿", C_INK, 28, 7);
+    lat(s_guest, "SUNISLE", C_BRAND, 66, 9, 3, &lv_font_montserrat_16);   // cinnabar wordmark
     rect(s_guest, 16, 34, 288, 1, C_LINE);
 
     // (2) hero stack. No "现在时间" / "每日一言" / "访客模式" / "欢迎来访"

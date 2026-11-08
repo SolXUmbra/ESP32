@@ -188,6 +188,7 @@ UI2_16_GUEST = ("访客模式年月日星期一二三四五六天欢迎来访主
 # reminder titles) is bound to the 14 px face instead. This is the §9.4
 # slimming step: 288 -> ~60 glyphs, freeing ~60 KB of app0.
 UI2_16 = (
+    "晴屿"   # brand wordmark, now in the sans face (was only in the Kai faces)
     "备忘与提醒工作首页今日任务已完成项智能提醒待处理确认稍后摘要"
     "下一项每日一言欢迎来访查看详情已确认稍后处理已展开在线离线"
     "暂无备忘提醒数据主人暂时离开工位请稍候"

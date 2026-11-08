@@ -5,6 +5,7 @@
 > 摘要：浅色 `#F4F6FA/#FFFFFF/#171D2B/#5267F6/#38B8C8/#A7D66D/#F08B72/#E6EAF0`；四画面 BOOT(1.5 s)/HOME/MEMOS/GUEST，仅 2 个可导航页；34/56 px Light 数字面 + 14 px 中文面（动态文案）+ 16 px 静态标题面 + 28 px 楷（品牌/GUEST 主提示）；每页 ≤30 对象；无渐变/阴影/图标字体；触摸仍禁用，交互走串口/Bridge 等价映射。
 > **GUEST 2.1 修订（09:55，已烧录）**：深石墨 GUEST 被用户否决，改为**多巴胺撞色**——紫 `#7C4DFF` 品牌条 / 黄 `#FFD93D` 时间卡（**56 px** 时钟）/ 粉 `#FF4FA3` 欢迎卡（**28 px 楷**主提示 + 16 px 副提示）/ 薄荷绿 `#2ED9A8` 每日一言，暖奶油 `#FFF6E0` 底。规范 §3.2/§3.3 的深色与「禁止彩色块」约束**仅适用于 BOOT/HOME/MEMOS**。权威坐标与色板见 `UI2_DESIGN/晴屿_GUEST2.1_多巴胺版交付说明.md`。
 > **v2 硬规则（08:47）**：自绘字库必须按 TTF 统一基线 + 真实 ink bbox 生成（见 `tools/gen_cn_font.py`），严禁「每字按自身墨迹框居中」——那会让整行上下乱跳；`line_height/base_line` 必须与 fallback Montserrat 一致。BOOT 只保留「晴屿 / AI 桌面工作伴侣 / 品牌蓝细线 / 启动进度」，顶栏状态为 `USB ON/OFF`。
+> **品牌字 sans 化（19:4x，已烧录）**：品牌弃楷体、改大厂 sans——中文「晴屿」与拉丁 `SUNISLE` 统一 16 px（`sunisle_cn_16` + Montserrat 16），同基线；启动页 logo 32×32 唯一放大元素。三处品牌锁（BOOT/顶栏/GUEST）一致。
 
 ## 以下为 UI 1.0 历史内容（已废弃）
 
