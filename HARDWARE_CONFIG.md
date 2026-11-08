@@ -79,19 +79,26 @@
 ⚠️ **SD 卡是用户自己的数据载体**：本工程只在 `/SUNISLE/` 命名空间下**新增**文件与目录，
 不删除、不覆盖任何已有文件。照片清理必须满足任务书的四重条件，且默认软删除。
 
-## 5. 触摸（本阶段不启用）
+## 5. 触摸（XPT2046，已确认可用，软件 bit-bang 驱动）
 
 | 项 | 值 |
 | --- | --- |
-| 控制器 | XPT2046 **NOT CONFIRMED**（3 组候选全部 saturated/constant bus） |
-| 推测引脚 | `sclk=14, mosi=13, miso=12, cs=33, irq=36`（**未验证**） |
-| 硬件事实 | 与 LCD **共用 HSPI 14/13/12**，仅 CS 不同 |
-| 状态 | **HELD OFF / DISABLED**：不 `pinMode`、不 `digitalWrite`、不注册 LVGL indev |
-| 原因 | bit-bang 会改写 GPIO 矩阵，令 SPI 外设与引脚断开 → **白屏**（16:29 实机确认） |
-| 正确方向 | 将来复用 LovyanGFX `Bus_SPI`（低速时钟 + CS/事务仲裁），**不是**软件翻转 |
+| 控制器 | **XPT2046**（电阻屏）。实机 `TOUCHPROBE` 在 CS=33 返回 STABLE 响应，已确认 |
+| 独立总线 | `clk=GPIO25, mosi(DIN)=GPIO32, miso(DOUT)=GPIO39, cs=GPIO33, irq(PENIRQ)=GPIO36` |
+| 与 LCD/SD 关系 | **独立总线**，不与 LCD 的 HSPI(14/13/12) 或 SD 的 VSPI(18/23/19) 共享 |
+| 驱动方式 | **软件 bit-bang SPI**：不占用 HSPI/VSPI 硬件外设，**不注册 LVGL indev** |
+| 白屏风险 | **无** — bit-bang 仅操作独立总线引脚；实机验证显示稳定、无白屏、heap 稳定 |
+| CS 可配置 | 默认 33；`TOUCHCS=<pin>` 可改；`probe()` 会**真正选中**各候选 CS 以定位控制器 |
+| 使能状态 | **开机 `autoDetect()` 即启用**，轮询上报 tap（raw→320×240 坐标 + 压力 + 时长） |
+| 隐私护栏 | GUEST 忽略一切 tap（触摸永不进入 OWNER）；仅 **BOOT 实体按钮** 长按可解锁 |
+| 坐标映射 | `mapRaw()` 按 rotation 1（逻辑 320×240）旋转；`TOUCHMAP=0..3` 可校准 |
+| 调试命令 | `TOUCH` / `TOUCH=on|off` / `TOUCHPROBE[=pin]` / `TOUCHSCAN[=ms]` / `TOUCHCS=<pin>` / `TOUCHMAP=0..3` / `I2CPROBE` |
 
-任务书允许「触摸不稳定时优先保证自动运行」→ 阶段 1 页面切换与设置改由
-**串口命令**（`PAGE=home|photos|settings` 等）完成，不依赖触摸。
+> **历史误区已纠正（2026-11-08 晚）**：早期多轮探测复用 LCD 总线且只切 CS，且 `readChannel`
+> 曾把 CS **写死为 33**，使 `probe()`/ `TOUCHCS=` 从未真正改变 CS 脚，造成「读不到触摸」的误判。
+> 正确做法是在**独立总线（25/32/39/33/36）** 上用软件 bit-bang 读 XPT2046，控制器即在 CS=33
+> 稳定响应。触摸导航现已可用：HOME 点击翻到 MEMOS，MEMOS 上「确认 / 稍后 / 查看详情」有独立命中区；
+> BOOT 按钮短按 = 下一页（OWNER），长按 = 锁/解锁。详见 `晴屿_触摸硬件诊断报告.md` 补记。
 
 ## 6. 分区表（沿用原厂，不擅自修改）
 
