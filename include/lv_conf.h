@@ -7,8 +7,8 @@
 #define LV_COLOR_DEPTH      16
 #define LV_COLOR_16_SWAP    0
 
-#define LV_HOR_RES_MAX      240
-#define LV_VER_RES_MAX      320
+#define LV_HOR_RES_MAX      320
+#define LV_VER_RES_MAX      240
 
 #define LV_MEM_CUSTOM       0
 #define LV_MEM_SIZE         (24U * 1024U)
@@ -25,14 +25,14 @@
 #define LV_LOG_PRINTF 1
 
 #define LV_USE_LABEL   1
-#define LV_USE_BTN     1
+#define LV_USE_BTN     1   // stage D pointer-driven nav (currently no indev)
 #define LV_USE_CONT    1
+// IMG stays 1: LVGL 8's lv_canvas.h / lv_animimg.h reference lv_img_t
+// unconditionally, so disabling it breaks the header set (measured above).
 #define LV_USE_IMG     1
 #define LV_USE_LINE    1
-// Widgets actually used by ui_sunisle.cpp: obj/label/img/line only.
-// LVGL 8 defaults EVERY other widget to 1, which pulled in calendar,
-// keyboard, menu, meter, tabview, ... plus their theme/draw paths (~40 KB).
-// Keep the vendor UI byte-identical: none of these are referenced by it.
+// Widget gates below are the upstream 1ab7ea3 slimming set, which compiled
+// and booted on this exact board. B six-page UI uses obj/label/btn only.
 #define LV_USE_ARC     0
 #define LV_USE_METER   0
 #define LV_USE_CALENDAR 0
@@ -58,19 +58,17 @@
 #define LV_USE_TABLE   0
 #define LV_USE_USER_DATA 1
 
-// Montserrat for Latin/digits. 12/16/28 are the fallbacks of the generated
-// CJK subset fonts (see tools/gen_cn_font.py).
-// 10 / 18 / 32 are required by the user-provided ui_sunisle.cpp (date line,
-// temperature, and the big time anchor). Enabled here rather than editing
-// the vendor UI source, which stays byte-identical to the delivered zip.
-// 20 and 48 were only used by the retired three-page mock-up; they are gone.
-#define LV_FONT_MONTSERRAT_10 1
+// Montserrat for Latin/digits. UI 2.0 keeps ONLY the CJK fallback sizes
+// (12/14/16); the 34 px clock and the big task count come from our own
+// proportional Light digit face sunisle_num_34. 18/28 were the UI 1.0 page
+// index and guest clock and are now off, freeing ~25 KB of app0 (§9.4).
+#define LV_FONT_MONTSERRAT_10 0
 #define LV_FONT_MONTSERRAT_12 1
 #define LV_FONT_MONTSERRAT_14 1
 #define LV_FONT_MONTSERRAT_16 1
-#define LV_FONT_MONTSERRAT_18 1
+#define LV_FONT_MONTSERRAT_18 0
 #define LV_FONT_MONTSERRAT_28 0
-#define LV_FONT_MONTSERRAT_32 1
+#define LV_FONT_MONTSERRAT_32 0
 #define LV_FONT_DEFAULT &lv_font_montserrat_14
 
 #define LV_USE_THEME_DEFAULT 1

@@ -1,43 +1,81 @@
-# 晴屿 SUNISLE B
+# 晴屿 SUNISLE · B 方案（QINGYU）
 
 > 把喜欢的时光，留在身边。 / *A Little Island of Sunshine.*
 
-一台桌面**备忘录提醒**设备：备忘列表、到点弹窗提醒、日期时间与天气，
-并接收 WorkBuddy 下发的 `CMD|` / `SKILL|` / `TASK|` 指令。相册模块已移除。
+针对同一块 ESP32-D0WD-V3 + ST7789 320×240 硬件的 **B 方案**：保留 A 方案的显示/SD/天气/校时底座，把显示层整体换成 **LVGL 8.3 + 四画面 AI 桌面助手 UI（UI 2.3 简约中式）**。
 
-> **版本说明**：本分支 `b-version` 为 B 版。A 版（相册）完整保留在 `main`
-> 分支与 `vA` 标签（`D:/ESP32/sunisle/`），源码、构建产物与本地配置均未改动。
+> **分支说明**：本分支 `b-version` 为 B 方案，工程在分支根目录；A 方案（纯 LovyanGFX 照片相框）完整保留在 `main` 分支与 `vA` 标签。
+> **实现沿革**：分支上一版是「备忘提醒 + WorkBuddy `CMD|`/`TASK|`/`SKILL|` 指令协议」（commit `da0e758`，未上机验证）；本版按「四画面 AI 桌面助手」重做显示层，那套指令协议与 `memo_service` 未沿用，需要时可从 `da0e758` 取回。
 
 ---
 
-## B 版速览（2026-11-08）
+## 当前状态（2026-11-08 10:40 烧录实测）
 
-| 能力 | 说明 |
+| 项 | 状态 |
 | --- | --- |
-| 备忘录 | `memos.tsv` 本地持久化、软删除 + `.bak` 备份、到点触发、稍后提醒、每日/每周重复 |
-| 提醒交互 | 屏幕弹卡片，轻触即完成；30 秒自动收起 |
-| 技能配置 | `SKILL|SET|memo.lead_min=10` 等，存 `skills.tsv`，`display.brightness` 即时生效 |
-| 综合任务 | `TASK|ADD|name=..|steps=a;b;c`，每推进一步生成一条备忘提醒 |
-| 下达指令 | 串口与可选 HTTP 轮询共用 `commandService::execute()`，统一 `ACK|` / `ERR|` 回执 |
-| 网络下发 | 默认关闭；在 `include/secrets.h` 填 `SUNISLE_CMD_HOST` 即启用（纯 HTTP，无 TLS） |
-| 中文字库 | `sunisle_cn_memo`：414 个日常常用字子集；超出字符需加进 `MEMO_CHARS` 重新生成 |
+| 硬件基线 | ESP32-D0WD-V3 / 4 MB flash / 无 PSRAM / CH340 `COM5` |
+| 显示 | ST7789 240×320 物理，横屏逻辑 320×240，`setRotation(1)`，HSPI 20 MHz，swap=1 |
+| UI | **UI 2.3 简约中式**：BOOT / HOME / MEMOS / GUEST 四画面，8 px 栅格、16 px 页边、1 px 描边卡 |
+| 中文字体 | 自研 LVGL 8bpp 子集面：14 px 动态（303 字白名单）/ 16 px 静态 / 28 px 楷品牌 / 34、56 px Light 数字 |
+| 固件 | **1,228,481 B / 93.7%（余 82,239 B）**，RAM 97,556 B / 29.8% |
+| 烧录 | 仅写 `0x10000`（app0），`Hash of data verified`，干净重启停在 GUEST |
+| 隐私 | 上电强制 GUEST；私有文本不缓存、不清空即不残留；GUEST 忽略点击，无法进入 Owner |
+| 触摸 | ⛔ 未打通：四种探测均取不到坐标，缺板子原理图/引脚；交互走串口等价命令 |
+| 网络 | Wi-Fi → NTP → Open-Meteo 真实天气（渑池），取数后关射频 |
 
-编译：`Flash 90.3% (1,184,157 B)` / `RAM 27.8%`，余量约 123.6 KB。
-设备尚未实机烧录验证（COM5 未接入）。
+**启动实测（`esp32_boot_log_cn23.txt`）**
 
-串口速试：
 ```
-CMD|help
-CMD|add|text=开会|at=09:30
-CMD|add|text=喝水|in=10
-CMD|list
-TASK|ADD|name=晨间流程|steps=起床;喝水;出门
-SKILL|GET
+[display] READY ST7789 320x240 HSPI 20MHz swap=1 buf=7680B
+[touch] HELD OFF at boot - no GPIO touched (panel stays safe)
+[ui] UI 2.0 BOOT (1500 ms) -> GUEST; power-on privacy = GUEST
+[net] Wi-Fi up: ssid=HOME ip=192.168.0.126 rssi=-50 dBm
+[time] SYNCED epoch=1794105343
+[weather] LIVE temp=11 C wmo=2 -> 多云
+[boot] UI 2.0 READY heap=199640 B flush=20
 ```
+
+零缺字警告（`glyph dsc. not found`）、零 LVGL 报错。
 
 ---
 
-## A 版历史状态（2026-11-06 19:05 实测，仅存档）
+## 目录
+
+| 路径 | 内容 |
+| --- | --- |
+| `src/ui/qingyu_ui.cpp` | 四画面全部布局，坐标与设计图一一对应 |
+| `src/ui/sunisle_cn.cpp` | 生成的 CJK 子集字模（约 690 KB，随仓库提交以便直接编译） |
+| `src/ui/ui_bridge.cpp` | 状态 → 文案绑定，动态字超出白名单降级为 `?` |
+| `src/ui/ui_theme.cpp` | 宣纸 / 墨 / 朱砂 / 青瓷 token |
+| `src/hardware/touch_manager.cpp` | 安全触摸层：不注册 LVGL indev、开机不碰触摸 GPIO |
+| `tools/gen_cn_font.py` | 字模生成（统一 TTF 基线 + 真实 ink bbox，勿改成逐字居中） |
+| `docs/ui2/` | UI 2.x 规范、实施与烧录报告、四张 320×240 设计图 + `index.html` |
+| `skill/` | 本项目开发知识库（硬件参数、UI 规范、串口协议、禁止事项） |
+
+## 串口命令（115200，等价于触控）
+
+```
+PAGE=home|memos|guest     切换页面
+PRIVACY=owner|guest       切换隐私状态
+ACT=ack|later|detail|task 确认 / 稍后 / 查看详情 / 完成任务
+NEXT                      跳下一条
+TOUCH=on|off / TOUCHSCAN  触摸探测（安全层，不注册 indev）
+REBOOT                    重启
+```
+
+## 编译与烧录
+
+```bash
+python -m platformio run -e esp32dev
+python -m esptool --chip esp32 --port COM5 --baud 921600 write_flash \
+  --flash_mode dio --flash_freq 40m --flash_size 4MB 0x10000 .pio/build_g/esp32dev/firmware.bin
+```
+
+`include/secrets.h` 保持 gitignored，从 `include/secrets.h.example` 复制后填 Wi-Fi。
+
+---
+
+## A 方案阶段状态（沿用底座，2026-11-06 实测）
 
 | 阶段 | 状态 |
 | --- | --- |

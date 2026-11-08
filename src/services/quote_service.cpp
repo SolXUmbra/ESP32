@@ -14,9 +14,10 @@ namespace sunisle {
 namespace quoteService {
 namespace {
 
-// MUST stay in sync with tools/gen_cn_font.py QUOTES. Each entry's glyphs are
-// baked into the sunisle_cn_quote subset font; adding a sentence here without
-// regenerating the font would render it as tofu boxes.
+// MUST stay in sync with tools/gen_cn_font.py QUOTES. Stage C ships one shared
+// 12 px subset (sunisle_cn_14) covering all quotes + the B six-page copy;
+// adding a sentence requires regenerating the font or sanitizeDynamic() will
+// downgrade its new glyphs to '?'.
 static const char* const kQuotes[] = {
     "把喜欢的时光，留在身边。",
     "种一棵树最好的时间是十年前，其次是现在。",

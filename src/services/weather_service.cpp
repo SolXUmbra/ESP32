@@ -23,7 +23,6 @@
 
 #include <WiFi.h>
 #include <WiFiMulti.h>
-#include "services/cmd_link.h"
 #include <SD.h>
 #include <math.h>
 #include <stdlib.h>
@@ -307,11 +306,6 @@ void netCycle() {
     }
     setState(SystemState::OFFLINE);
   }
-
-  // B version: while the radio is still up, pull any WorkBuddy directives.
-  // Same execute() parser as the serial console, so CMD/SKILL/TASK behave
-  // identically from either transport. No-op unless SUNISLE_CMD_HOST is set.
-  cmdLink::onNetworkWindow();
 
   radioOff();
 }

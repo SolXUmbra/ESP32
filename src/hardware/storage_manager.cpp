@@ -14,10 +14,10 @@ namespace {
 
 bool     s_ready = false;
 uint64_t s_total = 0;
+uint16_t s_photoCount = 0;
+char     s_photoPaths[MAX_PHOTO_ENTRIES][64];
 
-// B version: no photo index. Memos/tasks/skills are plain TSV files owned
-// by us under /SUNISLE/ (soft delete + .bak on every write).
-const char* kDirs[] = {SD_ROOT, DIR_CONFIG, DIR_MEMOS,
+const char* kDirs[] = {SD_ROOT, DIR_CONFIG, DIR_PHOTOS, DIR_THUMBS,
                        DIR_WEATHER, DIR_SYSTEM};
 
 // ---------------------------------------------------------------------------
@@ -71,6 +71,18 @@ SPIClass& busFor(uint8_t host) {
 
 bool isManaged(const char* path) {
   return path && strncmp(path, "/SUNISLE/", 9) == 0;
+}
+
+bool endsWithJpeg(const char* name) {
+  size_t n = strlen(name);
+  if (n < 4) return false;
+  const char* ext = name + n - 4;
+  if (strcasecmp(ext, ".jpg") == 0) return true;
+  if (n >= 5) {
+    ext = name + n - 5;
+    if (strcasecmp(ext, ".jpeg") == 0) return true;
+  }
+  return false;
 }
 
 // Tiny JSON readers: settings.json is a flat object we own. No JSON library
@@ -182,10 +194,10 @@ bool ensureDirectories() {
 String defaultSettings() {
   char buf[256];
   snprintf(buf, sizeof(buf),
-           "{\"brightness\":%u,\"city\":\"\","
+           "{\"brightness\":%u,\"slideshow_ms\":%lu,\"city\":\"\","
            "\"lat\":\"\",\"lon\":\"\",\"timezone\":\"CST-8\","
-           "\"sync_daily\":1}\n",
-           BL_DEFAULT);
+           "\"sync_daily\":1,\"crop_mode\":\"cover\"}\n",
+           BL_DEFAULT, static_cast<unsigned long>(SLIDESHOW_DEFAULT_MS));
   return String(buf);
 }
 
@@ -208,9 +220,11 @@ bool readAll(const char* path, String& out) {
 
 void publishOffline() {
   s_ready = false;
+  s_photoCount = 0;
   Snapshot s = snapshot();
   s.sdReady = false;
-  snprintf(s.statusLine, sizeof(s.statusLine), "存储卡不可用 / 备忘仅存内存");
+  s.photoCount = 0;
+  snprintf(s.statusLine, sizeof(s.statusLine), "存储卡不可用 / 陪伴模式");
   publish(s);
 }
 
@@ -223,6 +237,11 @@ uint64_t freeBytes() {
   if (!s_ready || SD.usedBytes() >= s_total) return 0;
   return s_total - SD.usedBytes();
 }
+uint16_t photoCount() { return s_photoCount; }
+const char* photoPath(uint16_t i) {
+  return i < s_photoCount ? s_photoPaths[i] : nullptr;
+}
+
 bool writeIfAbsent(const char* path, const char* content) {
   if (!s_ready || !isManaged(path)) return false;
   if (SD.exists(path)) return false;   // never overwrite user data
@@ -251,8 +270,8 @@ bool atomicReplace(const char* path, const char* content) {
     return false;
   }
   chk.close();
-  // Only our own managed config/memo files may be replaced. The caller
-  // must keep a .bak copy before invoking this on user data.
+  // Only our own managed config/index files may be replaced. Photo files
+  // are never touched here.
   if (SD.exists(path)) SD.remove(path);
   if (!SD.rename(tmp.c_str(), path)) {
     SUN_LOG("sd", "rename failed for %s", path);
@@ -285,14 +304,72 @@ bool fileExists(const char* path) {
   return s_ready && isManaged(path) && SD.exists(path);
 }
 
-// B version: the serial photo-upload/delete path is gone. Memo writes use
-// atomicReplace()/readText() below, which are restricted to /SUNISLE/ files.
+bool deletePhoto(const char* path) {
+  if (!s_ready || !isManaged(path)) return false;
+  const size_t prefix = strlen(DIR_PHOTOS);
+  if (strncmp(path, DIR_PHOTOS, prefix) != 0) return false;
+  // Must be a direct child of the photos dir, never a nested path.
+  if (path[prefix] != '/' || strchr(path + prefix + 1, '/')) return false;
+  if (!endsWithJpeg(path + prefix + 1)) return false;
+  if (!SD.exists(path)) return false;
+  const bool ok = SD.remove(path);
+  SUN_LOG("sd", "deleted %s %s", path, ok ? "OK" : "FAILED");
+  return ok;
+}
+
+bool writeFromStream(const char* path, Stream& src, uint32_t expected,
+                     uint32_t& written) {
+  written = 0;
+  if (!s_ready || !isManaged(path)) return false;
+  if (expected == 0 || expected > 4UL * 1024UL * 1024UL) return false;
+  // Never clobber an existing file: the host must pick a fresh name.
+  if (SD.exists(path)) return false;
+  if (s_total && freeBytes() < static_cast<uint64_t>(expected) + 65536ULL)
+    return false;
+
+  File f = SD.open(path, FILE_WRITE);
+  if (!f) return false;
+
+  static uint8_t chunk[1024];
+  src.setTimeout(5000);
+  while (written < expected) {
+    size_t want = expected - written;
+    if (want > sizeof(chunk)) want = sizeof(chunk);
+    const size_t got = src.readBytes(chunk, want);
+    if (got == 0) break;                        // 5 s idle -> abort
+    if (f.write(chunk, got) != got) break;
+    written += got;
+  }
+  f.flush();
+  f.close();
+
+  if (written != expected) {
+    // Incomplete upload must not masquerade as a photo.
+    SD.remove(path);
+    return false;
+  }
+
+  File chk = SD.open(path, FILE_READ);
+  if (!chk) return false;
+  const size_t onDisk = chk.size();
+  chk.close();
+  if (onDisk != expected) {
+    SD.remove(path);
+    return false;
+  }
+  SUN_LOG("sd", "uploaded %s (%lu B verified)", path,
+          static_cast<unsigned long>(onDisk));
+  return true;
+}
 
 bool loadSettings(Snapshot& s) {
   String txt;
   if (!readAll(FILE_SETTINGS, txt)) return false;
   long b = jsonNumber(txt, "brightness", BL_DEFAULT);
+  long ms = jsonNumber(txt, "slideshow_ms", SLIDESHOW_DEFAULT_MS);
   s.brightness = static_cast<uint8_t>(constrain(b, 0, 255));
+  s.slideshowMs = static_cast<uint32_t>(constrain(ms, SLIDESHOW_MIN_MS,
+                                                  SLIDESHOW_MAX_MS));
   String city = jsonString(txt, "city", "");
   if (city.length() > 0) city.toCharArray(s.city, sizeof(s.city));
   String lat = jsonString(txt, "lat", "");
@@ -310,17 +387,44 @@ bool saveSettings(const Snapshot& s) {
   String tz  = jsonString(old, "timezone", "CST-8");
   char buf[320];
   snprintf(buf, sizeof(buf),
-           "{\"brightness\":%u,\"city\":\"%s\","
+           "{\"brightness\":%u,\"slideshow_ms\":%lu,\"city\":\"%s\","
            "\"lat\":\"%s\",\"lon\":\"%s\",\"timezone\":\"%s\","
-           "\"sync_daily\":1}\n",
-           s.brightness, s.city, lat.c_str(), lon.c_str(), tz.c_str());
+           "\"sync_daily\":1,\"crop_mode\":\"cover\"}\n",
+           s.brightness, static_cast<unsigned long>(s.slideshowMs), s.city,
+           lat.c_str(), lon.c_str(), tz.c_str());
   bool ok = atomicReplace(FILE_SETTINGS, buf);
-  SUN_LOG("sd", "settings %s (brightness=%u)",
-          ok ? "saved" : "save FAILED", s.brightness);
+  SUN_LOG("sd", "settings %s (brightness=%u interval=%lus)",
+          ok ? "saved" : "save FAILED", s.brightness,
+          static_cast<unsigned long>(s.slideshowMs / 1000));
   return ok;
 }
 
+bool rescanPhotos() {
+  s_photoCount = 0;
+  if (!s_ready) return false;
+  File dir = SD.open(DIR_PHOTOS);
+  if (!dir || !dir.isDirectory()) {
+    if (dir) dir.close();
+    return false;
+  }
+  for (;;) {
+    File e = dir.openNextFile();
+    if (!e) break;
+    if (!e.isDirectory() && endsWithJpeg(e.name()) &&
+        s_photoCount < MAX_PHOTO_ENTRIES) {
+      snprintf(s_photoPaths[s_photoCount], sizeof(s_photoPaths[0]),
+               "%s/%s", DIR_PHOTOS, e.name());
+      ++s_photoCount;
+    }
+    e.close();
+  }
+  dir.close();
+  SUN_LOG("sd", "photo scan: %u real JPEG file(s)", s_photoCount);
+  return true;
+}
+
 bool remount() {
+  s_photoCount = 0;
   if (!mountBest()) {
     SUN_LOG("sd", "remount FAILED - no option sustained a real FAT read");
     publishOffline();
@@ -332,14 +436,17 @@ bool remount() {
     publishOffline();
     return false;
   }
+  rescanPhotos();
   Snapshot s = snapshot();
   s.sdReady = true;
+  s.photoCount = s_photoCount;
   publish(s);
   return true;
 }
 
 bool begin() {
   s_ready = false;
+  s_photoCount = 0;
 
   if (!mountBest()) {
     SUN_LOG("sd", "UNAVAILABLE - no mount option sustained a real FAT read");
@@ -365,9 +472,11 @@ bool begin() {
   s.sdReady = true;
   loadSettings(s);
   publish(s);
-  writeIfAbsent(FILE_MEMOS, "# id\tstate\tat\trepeat\ttext\n");
-  writeIfAbsent(FILE_TASKS, "# id\tstate\tname\tstep\ttotal\n");
-  writeIfAbsent(FILE_SKILLS, "# skill\tkey\tvalue\n");
+  rescanPhotos();
+
+  s = snapshot();
+  s.photoCount = s_photoCount;
+  publish(s);
   return true;
 }
 
@@ -425,11 +534,12 @@ void runProbe(bool includeSharedBus) {
 }
 
 void dump() {
-  SUN_LOG("sd", "ready=%s total=%lu MB used=%lu MB free=%lu MB",
+  SUN_LOG("sd", "ready=%s total=%lu MB used=%lu MB free=%lu MB photos=%u",
           s_ready ? "YES" : "NO",
           static_cast<unsigned long>(s_total / (1024ULL * 1024ULL)),
           static_cast<unsigned long>(usedBytes() / (1024ULL * 1024ULL)),
-          static_cast<unsigned long>(freeBytes() / (1024ULL * 1024ULL)));
+          static_cast<unsigned long>(freeBytes() / (1024ULL * 1024ULL)),
+          s_photoCount);
 }
 
 }  // namespace storage

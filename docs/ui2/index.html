@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<title>晴屿 QINGYU · UI 2.2 简约中式视觉方案</title>
+<style>
+  :root { --bg:#F5F3ED; --surface:#FFFFFF; --ink:#222A27; --muted:#717A74;
+           --brand:#B23A2E; --line:#E2DFD6; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:40px 32px 64px; background:var(--bg); color:var(--ink);
+         font-family:"Microsoft YaHei","Segoe UI",sans-serif; }
+  .wrap { max-width:1400px; margin:0 auto; }
+  header { border-bottom:1px solid var(--line); padding-bottom:22px; margin-bottom:28px; }
+  .eyebrow { font-size:11px; letter-spacing:.28em; color:var(--brand); font-weight:700; }
+  h1 { font-size:30px; margin:10px 0 6px; font-weight:600; letter-spacing:.02em; }
+  .sub { color:var(--muted); font-size:14px; margin:0; }
+  .status { display:inline-block; margin-top:14px; padding:7px 14px; border-radius:6px;
+            background:#fff; border:1px solid var(--line); font-size:12px; color:var(--muted); }
+  .status b { color:var(--brand); }
+  h2 { font-size:17px; margin:38px 0 16px; font-weight:600; }
+  h2::before { content:""; display:inline-block; width:3px; height:15px;
+                background:var(--brand); margin-right:10px; vertical-align:-2px; }
+  .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:22px; }
+  .sheet { margin:0; background:var(--surface); border:1px solid var(--line);
+           border-radius:8px; padding:18px; position:relative; }
+  .tag { position:absolute; top:16px; right:16px; font-size:10px; letter-spacing:.12em;
+          color:var(--muted); border:1px solid var(--line); border-radius:4px; padding:3px 7px; }
+  .sheet img { width:100%; max-width:640px; height:auto; display:block;
+                image-rendering:pixelated; border:1px solid var(--line); border-radius:4px; }
+  figcaption { display:flex; flex-direction:column; gap:4px; margin-top:14px; }
+  figcaption b { font-size:15px; font-weight:600; }
+  figcaption span { font-size:12px; color:var(--muted); }
+  .tokens { display:flex; flex-wrap:wrap; gap:10px; }
+  .tok { display:flex; align-items:center; gap:8px; background:#fff; border:1px solid var(--line);
+          border-radius:6px; padding:8px 12px; font-size:12px; }
+  .tok i { width:16px; height:16px; border-radius:3px; border:1px solid rgba(0,0,0,.08); }
+  .tok code { font-family:"Segoe UI",monospace; font-weight:600; }
+  .tok em { font-style:normal; color:var(--muted); }
+  .notes { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+  .note { background:#fff; border:1px solid var(--line); border-radius:8px; padding:16px 18px; }
+  .note h3 { font-size:13px; margin:0 0 8px; color:var(--brand); letter-spacing:.04em; }
+  .note p { font-size:12.5px; line-height:1.7; color:var(--muted); margin:0; }
+  .flow { display:block; width:100%; max-width:1000px; border:1px solid var(--line);
+           border-radius:8px; background:#fff; }
+  footer { margin-top:42px; padding-top:18px; border-top:1px solid var(--line);
+            font-size:12px; color:var(--muted); line-height:1.8; }
+</style></head><body><div class="wrap">
+<header>
+  <div class="eyebrow">QINGYU · UI 2.2 · 简约中式 · DESIGN DELIVERY</div>
+  <h1>晴屿 · UI 2.2 简约中式视觉方案</h1>
+  <p class="sub">Intelligent Desk Companion · 320 × 240 横屏 · LVGL 8.3.11 · 宣纸 / 墨 / 朱砂单一色板 · 8 px 栅格 · 四画面</p>
+  <div class="status"><b>已实施</b>　UI 2.2 简约中式：撤回多巴胺撞色，四画面统一宣纸 / 墨 / 朱砂单一色板 + 8 px 栅格，已编译烧录。</div>
+</header>
+
+<h2>四张页面设计稿（原始像素 320 × 240，预览放大 2×）</h2>
+<div class="grid">
+    <figure class="sheet">
+      <div class="tag">320 × 240</div>
+      <img src="01_boot_320x240.png" alt="开机画面" width="640" height="480">
+      <figcaption><b>开机画面</b><span>BOOT · 1.5 s · 宣纸留白 / 居中「晴屿」/ AI 桌面工作伴侣 / 朱砂细线 / 启动进度</span></figcaption>
+    </figure>
+    <figure class="sheet">
+      <div class="tag">320 × 240</div>
+      <img src="02_home_320x240.png" alt="工作首页" width="640" height="480">
+      <figcaption><b>工作首页</b><span>HOME · 8 px 栅格 · 时间主视觉 + 任务进度 + AI 摘要 + 下一项 + 连接状态</span></figcaption>
+    </figure>
+    <figure class="sheet">
+      <div class="tag">320 × 240</div>
+      <img src="03_memos_320x240.png" alt="备忘与提醒" width="640" height="480">
+      <figcaption><b>备忘与提醒</b><span>MEMOS · 统一描边卡片 · 上智能提醒（确认/稍后）+ 下 AI 备忘（查看详情）</span></figcaption>
+    </figure>
+    <figure class="sheet">
+      <div class="tag">320 × 240</div>
+      <img src="04_guest_320x240.png" alt="访客模式 2.2" width="640" height="480">
+      <figcaption><b>访客模式 2.2</b><span>GUEST · 简约中式 · 56 px 时间 / 16 px 日期 / 朱砂细线 / 一行每日一言 · 无任何说明性标签 · 不可触摸返回</span></figcaption>
+    </figure>
+</div>
+
+<h2>页面交互流程图</h2>
+<img class="flow" src="05_交互流程图.png" alt="页面交互流程图">
+
+<h2>色彩 Token</h2>
+<div class="tokens"><div class="tok"><i style="background:#F5F3ED"></i><code>BG 宣纸</code><em>#F5F3ED</em></div><div class="tok"><i style="background:#FFFFFF"></i><code>SURFACE 卡面</code><em>#FFFFFF</em></div><div class="tok"><i style="background:#222A27"></i><code>INK 墨</code><em>#222A27</em></div><div class="tok"><i style="background:#717A74"></i><code>MUTED 淡墨</code><em>#717A74</em></div><div class="tok"><i style="background:#B23A2E"></i><code>BRAND 朱砂</code><em>#B23A2E</em></div><div class="tok"><i style="background:#6E8B7E"></i><code>TECH 青瓷</code><em>#6E8B7E</em></div><div class="tok"><i style="background:#E2DFD6"></i><code>LINE 细线</code><em>#E2DFD6</em></div></div>
+
+<h2>关键审计结论</h2>
+<div class="notes">
+  <div class="note"><h3>栅格与组件</h3><p>8 px 栅格 / 16 px 页边距 / 288 px 内容区 / 14 px 卡内边距 / 统一 8 px 圆角 + 1 px 细线描边 / 状态组右对齐。四画面共用一套组件，无阴影、无彩色块铺底。</p></div>
+  <div class="note"><h3>字体与基线</h3><p>自研子集字体按 TTF 统一基线 + 真实 ink bbox（修复「歪歪扭扭」）。四级层级：56 px Light 主数值 / 28 px 楷标题（仅开机品牌）/ 16 px 提示 / 14 px 正文。</p></div>
+  <div class="note"><h3>容量</h3><p>字库瘦身 + 删三页后固件约 1.20 MB / app0 91%，余量约 100 KB。全部字面为 8bpp alpha、真实墨迹框，不再用逐字居中。</p></div>
+  <div class="note"><h3>触摸状态</h3><p>LVGL indev 仍是白屏根因，保持禁用。SPI / I²C / 独立 SPI / 117 组 MISO×CS 矩阵均未取到 12 位 ADC 值，缺的是板上触摸引脚定义，交互暂走串口等价命令。</p></div>
+  <div class="note"><h3>隐私安全</h3><p>上电 BOOT → GUEST 强制默认；私有 setter 在 Guest/BOOT 丢弃文本；只有已验证 Bridge 会话可恢复 Owner。按规范保留，不新增触摸返回路径。</p></div>
+  <div class="note"><h3>不改冻结参数</h3><p>setRotation(1)、20 MHz HSPI、LCD_PIXEL_SWAP、GPIO 全部保持；RGB565 会让白色回读偏 #F8FCF8，验收允许 ±8/通道偏差。</p></div>
+</div>
+
+<footer>
+完整规范（色彩/字体 Token、逐元素坐标表、组件规范、交互定义、性能约束、实施顺序、回滚、验收清单）：<b>晴屿_UI2.0_视觉设计规范.md</b><br>
+设计稿由 render_ui2.py 按规范坐标自绘，非产品代码截图；UI 2.2 的色板与坐标已与固件 qingyu_ui.cpp / ui_theme.cpp 同步。
+</footer>
+</div></body></html>
