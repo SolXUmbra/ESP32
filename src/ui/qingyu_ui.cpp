@@ -207,13 +207,14 @@ static lv_obj_t *boot_logo(lv_obj_t *p, int x, int y) {
 static void build_boot(void) {
     s_boot = lv_obj_create(s_root);
     style_page(s_boot, C_BG);
-    // Horizontal brand lock-up: logo + 晴屿 + SUNISLE, optically centred on
-    // the 320-wide panel. One cinnabar hairline + the linear progress sweep
-    // stay. Big-tech style: CN and Latin wordmark share ONE 16 px size (sans),
-    // baseline-aligned, with the 32 px mark as the only oversized element.
-    boot_logo(s_boot, 62, 66);                                   // 32x32 mark
-    lbl(s_boot, "晴屿", C_INK, &sunisle_cn_16, 106, 74);        // Chinese, ink (16 px, same as Latin)
-    lat(s_boot, "SUNISLE", C_BRAND, 150, 74, 5, &lv_font_montserrat_16);  // Latin, cinnabar (16 px)
+    // Horizontal brand lock-up, user reference (2026-11-08): logo -> SUNISLE ->
+    // 晴屿. Latin first, uppercase + wide tracking (cinnabar); Chinese in Kai
+    // 16 px (calligraphic, ink) reads ~1.25x the Latin cap height, exactly the
+    // reference ratio. Both sit on ONE baseline (H=15/BL=3): labels at the
+    // same y baseline-align; group optically centred (68..251 on 320).
+    boot_logo(s_boot, 68, 66);                                   // 32x32 mark
+    lat(s_boot, "SUNISLE", C_BRAND, 110, 74, 5, &lv_font_montserrat_16);  // Latin, cinnabar
+    lbl(s_boot, "晴屿", C_INK, &sunisle_cn_kai_16, 219, 74);    // Chinese, Kai 16 px, ink
     rect(s_boot, 136, 138, 48, 2, C_BRAND);
     lv_obj_t *sub = cn14(s_boot, "渑池高中AI桌面助理", C_MUTED, 0, 158);
     lv_obj_align(sub, LV_ALIGN_TOP_MID, 0, 158);
