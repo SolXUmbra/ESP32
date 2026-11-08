@@ -17,12 +17,15 @@ lv_obj_t* s_veil = nullptr;
 uint32_t  s_bootStart = 0;
 uint8_t   s_lastPct = 0xFF;
 Page      s_page = Page::GUEST;
+// Mirrors the Windows desktop lock state. The panel never decides this itself:
+// see main.cpp applySessionLock() and the SESSION= serial hook.
+bool      s_sessionLocked = false;
 
 }  // namespace
 
 void begin() {
   uiBridge::begin();
-  uiBridge::showBoot();        // power-on default: BOOT, never Owner
+  uiBridge::showBoot();        // splash only; privacy is applied when it ends
 
   s_veil = block(lv_scr_act(), SCREEN_W, SCREEN_H, LV_ALIGN_TOP_LEFT, 0, 0,
                  bg(), 0, LV_OPA_COVER);
@@ -33,7 +36,7 @@ void begin() {
   setState(SystemState::LOCAL_INIT);
   setPage(Page::GUEST);
   uiBridge::tick();            // public clock + quote only; private setters drop
-  SUN_LOG("ui", "UI 2.0 BOOT (%lu ms) -> GUEST; power-on privacy = GUEST",
+  SUN_LOG("ui", "UI 2.0 BOOT (%lu ms); lock state mirrors the Windows session",
           static_cast<unsigned long>(BOOT_TOTAL_MS));
 }
 
@@ -53,14 +56,17 @@ void tickFrame() {
   if (e >= BOOT_TOTAL_MS) {
     lv_obj_del(s_veil);
     s_veil = nullptr;
-    // Task book: power-on default is GUEST. BUT if the user already unlocked
-    // (BOOT long-press or PRIVACY=owner) during the splash, respect that
-    // explicit session instead of forcing GUEST on top of it.
-    if (!uiBridge::owner()) {
-      uiBridge::setPrivacy(false, false);
+    // Mirror the Windows desktop. Booting into GUEST with no session link is a
+    // dead end: GUEST drops every tap, so the panel would look frozen. Default
+    // to UNLOCKED and let an explicit lock event (SESSION=lock, later the
+    // Bridge) put it away.
+    if (s_sessionLocked) {
+      uiBridge::setPrivacy(false, true);
+    } else {
+      uiBridge::setPrivacy(true, true);
     }
     setState(SystemState::HOME_READY);
-    s_page = uiBridge::owner() ? Page::HOME : Page::GUEST;
+    s_page = s_sessionLocked ? Page::GUEST : Page::HOME;
     setPage(s_page);
     uiBridge::tick();
     lv_obj_invalidate(lv_scr_act());
@@ -73,8 +79,10 @@ void showPage(Page p) {
   if (p == Page::BOOT) {
     uiBridge::showBoot();
   } else if (p == Page::GUEST) {
+    s_sessionLocked = true;
     uiBridge::setPrivacy(false, false);
   } else {
+    s_sessionLocked = false;
     // HOME / MEMOS map 1:1 onto qy_page_t 0..1.
     const uint8_t idx = static_cast<uint8_t>(p);
     if (!uiBridge::owner()) {
@@ -93,6 +101,7 @@ void showPage(Page p) {
 void tick1s() { uiBridge::tick(); }
 
 Page currentPage() { return s_page; }
+bool sessionLocked() { return s_sessionLocked; }
 bool bootActive() { return s_veil != nullptr; }
 
 }  // namespace ui

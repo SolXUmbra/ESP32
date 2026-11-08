@@ -36,7 +36,6 @@ constexpr int8_t BTN_PIN = 0;
 bool     s_btnDown = false;
 uint32_t s_btnPressStart = 0;
 uint32_t s_lastInteraction = 0;        // owner-activity watchdog for auto-lock
-constexpr uint32_t AUTOLOCK_MS = 60000; // OWNER idle -> GUEST after 60 s
 
 // A tap is dispatched to the SAME UI actions as ACT=/NEXT. GUEST deliberately
 // ignores every tap: the privacy overlay must never be touch-dismissable.
@@ -46,17 +45,14 @@ static void onTouchTap(uint16_t sx, uint16_t sy,
   Serial.printf("[touch] tap raw=%u,%u z=%u dur=%lums -> screen=%u,%u\n",
                 rx, ry, z, static_cast<unsigned long>(dur), sx, sy);
   if (!uiBridge::owner()) {
-    Serial.println(F("[touch] GUEST ignored (privacy; BOOT btn unlocks)"));
+    // GUEST IS the locked state and it mirrors the Windows desktop: entered only
+    // when the OS locks, left only when the OS unlocks. A tap must never dismiss
+    // it - otherwise device and desktop disagree about whether the user is
+    // present, which is exactly the bug this model replaces.
+    Serial.println(F("[touch] GUEST tap ignored (desktop locked)"));
     return;
   }
   s_lastInteraction = millis();
-  // Long press while OWNER = manual lock back to GUEST.
-  if (dur >= 2000) {
-    uiBridge::setPrivacy(false, false);
-    ui::showPage(Page::GUEST);
-    Serial.println(F("[touch] OWNER -> GUEST (long-press lock)"));
-    return;
-  }
   const Page page = snapshot().page;
   if (page == Page::HOME) {
     uiBridge::nextPage();
@@ -80,9 +76,26 @@ static void onTouchTap(uint16_t sx, uint16_t sy,
   }
 }
 
-// BOOT button (GPIO 0, active-low): short press = next page (owner only);
-// long press = toggle lock. This is the deliberate local unlock gate, keeping
-// "touch can never enter Owner" intact - only the physical button can.
+// Session lock model: the panel MIRRORS the Windows desktop.
+//   Windows locked   -> GUEST (no private data, no touch navigation)
+//   Windows unlocked -> HOME  (owner session, touch navigation live)
+// Nothing local may lock or unlock it: an idle timer or a long press that
+// changes the state on its own is a desync bug, not a feature. The Phase D
+// Bridge pushes real session events through this same entry point; SESSION=
+// is the serial equivalent used for bring-up and for manual testing.
+static void applySessionLock(bool windowsLocked) {
+  uiBridge::setPrivacy(!windowsLocked, true);   // trusted: external session event
+  ui::showPage(windowsLocked ? Page::GUEST : Page::HOME);
+  s_lastInteraction = millis();
+  Serial.printf("[session] windows=%s -> device %s\n",
+                windowsLocked ? "LOCKED" : "UNLOCKED",
+                windowsLocked ? "GUEST" : "OWNER/HOME");
+}
+
+// BOOT button (GPIO 0, active-low): short press = next page, owner session only.
+// It has NO lock authority: locking and unlocking belong to the Windows session
+// (applySessionLock). A button that silently changes the lock state is precisely
+// the behaviour that made the panel look frozen.
 static void handleButton(uint32_t now) {
   const bool down = (digitalRead(BTN_PIN) == LOW);
   if (down && !s_btnDown) {
@@ -91,22 +104,17 @@ static void handleButton(uint32_t now) {
   } else if (!down && s_btnDown) {
     s_btnDown = false;
     const uint32_t d = now - s_btnPressStart;
-    if (d < 40) return;                       // debounce glitch
-    if (d >= 2000) {                          // long press: toggle lock
-      if (uiBridge::owner()) {
-        uiBridge::setPrivacy(false, false);
-        ui::showPage(Page::GUEST);
-        Serial.println(F("[btn] OWNER -> GUEST (long-press lock)"));
-      } else {
-        uiBridge::setPrivacy(true, false);     // LOCAL unlock, not Bridge auth
-        ui::showPage(Page::HOME);
-        s_lastInteraction = now;
-        Serial.println(F("[btn] GUEST -> HOME (local unlock)"));
-      }
+    if (d < 40) {                             // debounce glitch
+      Serial.printf("[btn] glitch held=%lums\n", static_cast<unsigned long>(d));
+      return;
+    }
+    if (d >= 2000) {                          // long press: no lock authority
+      Serial.printf("[btn] long press ignored: lock follows the Windows session "
+                    "(held=%lums)\n", static_cast<unsigned long>(d));
     } else if (uiBridge::owner()) {            // short press: next page
       uiBridge::nextPage();
       s_lastInteraction = now;
-      Serial.println(F("[btn] NEXT"));
+      Serial.printf("[btn] NEXT held=%lums\n", static_cast<unsigned long>(d));
     }
   }
 }
@@ -129,7 +137,8 @@ void handleCommand(const String& raw) {
   if (c == "HELP") {
     Serial.println(F("HELP | STATE | MEM | SD | TIME | WX"));
     Serial.println(F("PAGE=home|memos|guest|boot | NEXT"));
-    Serial.println(F("PRIVACY=owner|guest  (LOCAL DEBUG only)"));
+    Serial.println(F("SESSION=lock|unlock mirrors the Windows desktop (Bridge hook)"));
+    Serial.println(F("PRIVACY=owner|guest  (alias of SESSION=, debug only)"));
     Serial.println(F("DEMO=on|off | ACT=ack|later|detail|task"));
     Serial.println(F("BL=<0..255> | DIAG | UI | SDPROBE[=FULL] | REBOOT"));
     Serial.println(F("NAV: BOOT btn short=NEXT, long(2s)=lock/unlock; touch HOME->MEMOS"));
@@ -140,6 +149,7 @@ void handleCommand(const String& raw) {
     Serial.println(F("BRING-UP: GPIOSCAN[=ms] finds PENIRQ; TOUCHBUS=clk,mosi,miso;"));
     Serial.println(F("          TOUCHPINS=clk,mosi,miso,cs,irq; TOUCHMODE=hw|bb"));
     Serial.println(F("          TOUCHRAW[=idleMs,pressMs] untouched-vs-pressed ADC"));
+    Serial.println(F("          TOUCHDBG[=ms] main-loop z trace; BTN = button pin state"));
   } else if (c == "WX") {
     weatherService::dump();
   } else if (c == "STATE") {
@@ -181,12 +191,10 @@ void handleCommand(const String& raw) {
   } else if (c == "NEXT") {
     s_diagMode = false;
     uiBridge::nextPage();
-  } else if (c.startsWith("PRIVACY=")) {
-    const bool on = c.endsWith("OWNER");
-    uiBridge::setPrivacy(on, false);   // false = local debug, not Bridge auth
+  } else if (c.startsWith("PRIVACY=") || c.startsWith("SESSION=")) {
+    const bool on = c.endsWith("OWNER") || c.endsWith("UNLOCK") || c.endsWith("unlock");
+    applySessionLock(!on);             // same path the Bridge will drive
     s_diagMode = false;
-    ui::showPage(on ? Page::HOME : Page::GUEST);
-    if (on) s_lastInteraction = millis();
   } else if (c == "DEMO=ON" || c == "DEMO=OFF") {
     uiBridge::setDemo(c == "DEMO=ON");
     uiBridge::tick();
@@ -333,6 +341,12 @@ void handleCommand(const String& raw) {
     uint32_t ms = static_cast<uint32_t>(c.substring(9).toInt());
     if (ms > 60000UL) ms = 60000UL;
     touch::debugFor(ms);
+  } else if (c == "BTN") {
+    Serial.printf("[btn] pin=%d level=%d down=%d held=%lums owner=%d\n",
+                  static_cast<int>(BTN_PIN), digitalRead(BTN_PIN),
+                  s_btnDown ? 1 : 0,
+                  static_cast<unsigned long>(s_btnDown ? (millis() - s_btnPressStart) : 0),
+                  uiBridge::owner() ? 1 : 0);
   } else if (c == "TOUCHCAL") {
     touch::calRun(10000);
   } else if (c.startsWith("TOUCHCAL=")) {
@@ -455,12 +469,6 @@ void loop() {
   const uint32_t now = millis();
   touch::tick(now, onTouchTap);   // PENIRQ-gated CYD taps (enabled at boot)
   handleButton(now);              // BOOT button nav fallback + unlock
-  // Auto-lock: OWNER idle too long -> back to GUEST (privacy).
-  if (uiBridge::owner() && (now - s_lastInteraction > AUTOLOCK_MS)) {
-    uiBridge::setPrivacy(false, false);
-    ui::showPage(Page::GUEST);
-    Serial.println(F("[auto-lock] OWNER idle -> GUEST"));
-  }
   if (now - s_lastTick >= UI_TICK_MS) {
     s_lastTick = now;
     timeService::tick();

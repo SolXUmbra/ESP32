@@ -1,7 +1,7 @@
 # 隐私与安全规则
 
 ## 模式
-- OWNER / GUEST 白名单；**上电默认 Guest**。
+- OWNER / GUEST 白名单；**锁屏状态镜像 Windows 桌面**（详见下方切换规则）。
 - Guest 公开范围：品牌、欢迎语、时间日期、经明确 `public` 标记的公开信息。
 - Guest 禁止显示：私人任务、备忘、摘要、通知历史、财务结果、对话内容、账号状态详情。
 - 状态优先级：Guest > Reminder overlay > Current owner page；任何未知状态默认 Guest。
@@ -9,10 +9,14 @@
 ## 切换规则（阶段 G）
 | 事件 | 结果 |
 | --- | --- |
-| 上电 / 复位 / USB 重连 / Bridge 重启 / 会话无法确认 | 保持 Guest |
-| Windows 锁屏 | 自动 Guest |
-| 解锁 | 需 Bridge 已验证会话令牌授权后才可回 Owner |
-| Guest 下普通触摸或简单字符串 | 不得切到 Owner |
+| Windows 锁屏 | **唯一锁屏入口** → Guest |
+| Windows 解锁进桌面 | **唯一解锁入口** → Owner/HOME |
+| 上电 / 复位 / USB 重连（无会话信息） | 默认 Owner，日志标注 unverified；收到会话事件后严格跟随 |
+| 设备本地长按 / 闲置计时 | **不得改变锁屏状态**（相关逻辑已移除） |
+| Guest 下任何触摸或简单字符串 | 不得切到 Owner，也不得泄露任何数据 |
+
+> 决策依据（用户 2026-11-08 明确要求）：只有 Windows 锁屏时设备才锁，Windows 解锁设备随之解锁。
+> 上电默认 Guest 会让无 Bridge 的机器永久不可用（Guest 丢弃全部触摸），已废止。
 
 授权依赖 Bridge 会话令牌 + 有效期；公开信息必须显式 `public` 标记。
 

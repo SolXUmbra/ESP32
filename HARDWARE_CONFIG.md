@@ -92,8 +92,22 @@
 | 总线失效特征 | 若四个通道同时读到 `4095`（0xFFF），说明 DOUT 悬空、总线上没有芯片在应答。此时**必须判 z=0**，否则 4095 会被当成最大压力 → 永久「按下」→ 一个 tap 都发不出 |
 | 坐标标定 | 四点标定存 NVS（`qytouch`/`cal`）；实测值 `x 235..3633`、`y 445..3663`，无轴互换。`TOUCHCAL` 重标、`TOUCHSETCAL=x0,x1,y0,y1[,swap]` 注入 |
 | 与 LVGL 关系 | **不注册 LVGL indev**，仅通过回调上报 tap（避免 `B方案_白屏二分记录.md` 中的白屏路径） |
-| 权限门控 | GUEST 忽略触摸（隐私设计），日志 `GUEST ignored`；长按 BOOT 解锁到 OWNER 后触摸才生效；OWNER 下长按 ≥2s 回锁 GUEST，空闲 60s 自动锁 |
+| 权限门控 | **锁屏状态镜像 Windows 桌面**（见下节）：Windows 锁屏 → GUEST（触摸全部丢弃），Windows 解锁 → HOME/OWNER（触摸立即可用）。设备本地不再自行上锁/解锁：无长按手势、无闲置自动锁。串口 `SESSION=lock|unlock` 是 Bridge 接入前的等价入口 |
 | 调试命令 | `TOUCH` / `TOUCH=on|off` / `TOUCHMODE=hw|bb` / `TOUCHDBG[=ms]`（主循环视角，非阻塞）/ `TOUCHRAW[=i,p]` / `TOUCHLOG[=ms]`（独占视角，阻塞）/ `TOUCHCAL` / `TOUCHSETCAL` / `TOUCHSCAN` / `TOUCHPINS=clk,mosi,miso,cs,irq` |
+
+### 锁屏模型：镜像 Windows 桌面（2026-11-08 定案）
+| Windows 状态 | 设备状态 | 触摸 |
+| --- | --- | --- |
+| 锁屏 | GUEST（只显示公开信息） | 全部丢弃，日志 `GUEST tap ignored (desktop locked)` |
+| 解锁进桌面 | HOME / OWNER | 正常翻页与命中区动作 |
+| 未知（无 Bridge 链路） | 默认 OWNER | 正常可用 |
+
+旧实现有三处**本地**锁屏权威，全部已移除：
+1. 上电默认 GUEST —— 无 Bridge 时永远无法解锁，屏幕看起来"点了毫无反应"；
+2. OWNER 长按 ≥2s 回锁 GUEST；
+3. OWNER 空闲 60s 自动锁。
+只保留一个入口 `applySessionLock(bool windowsLocked)`（main.cpp），`SESSION=lock|unlock` 与后续 Bridge 都走它，
+设备自己不再判断"用户还在不在"。
 
 ### 为什么必须用 bit-bang（2026-11-08 定案）
 ESP32 只有 HSPI / VSPI 两个可用 SPI 外设，而本板**两个都已被占**：HSPI 归 LCD（LovyanGFX，14/13/12），VSPI 归 SD 卡（18/19/23/5）。
